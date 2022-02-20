@@ -1,0 +1,23 @@
+{
+  "name": "myradio",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "vhsconnect <90valentin@gmail.com>",
+  "license": "GPLv2",
+  "private": false,
+  "scripts": {
+    "server": "nodemon server.js --watch index.jx",
+    "hot": "esbuild src/App.jsx --bundle --outfile=./index.js --watch"
+  },
+  "dependencies": {
+    "esbuild": "^0.14.23",
+    "fastify": "^3.27.2",
+    "fastify-static": "^4.5.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "rxjs": "^7.5.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  }
+}
