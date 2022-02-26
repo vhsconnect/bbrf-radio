@@ -5,19 +5,25 @@
   "author": "vhsconnect <90valentin@gmail.com>",
   "license": "GPLv2",
   "private": false,
+  "type": "module",
   "scripts": {
-    "server": "nodemon server.js --watch index.jx",
-    "hot": "esbuild src/App.jsx --bundle --outfile=./index.js --watch"
+    "server": "nodemon server/server.js",
+    "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch"
   },
   "dependencies": {
     "esbuild": "^0.14.23",
     "fastify": "^3.27.2",
     "fastify-static": "^4.5.0",
+    "got": "^12.0.1",
+    "ramda": "^0.28.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "rxjs": "^7.5.4"
+    "rxjs": "^7.5.4",
+    "uri-template": "^2.0.0"
   },
   "devDependencies": {
+    "eslint": "^8.9.0",
+    "eslint-plugin-react": "^7.28.0",
     "nodemon": "^2.0.15"
   }
 }

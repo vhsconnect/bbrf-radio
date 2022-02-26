@@ -1,0 +1,19 @@
+* {
+  background-color: black;
+  color: aquamarine;
+}
+
+.button {
+  padding: 5px;
+  border: solid aqua 1px;
+  border-radius: 2px;
+}
+.button-disabled {
+  padding: 5px;
+  background-color: darkgray;
+  border-radius: 2px;
+}
+.flex {
+  display: flex;
+  justify-content: space-around;
+}
