@@ -12,18 +12,47 @@ export default function Main() {
   const [favorites, setFavorites] = React.useState([]);
 
   React.useEffect(() => {
-    fromEvent(document.getElementById("tags"), "input")
+    const tagsObservable = fromEvent(document.getElementById("tags"), "input");
+    const ccObservable = fromEvent(
+      document.getElementById("countrycode"),
+      "input"
+    );
+    const nameObservable = fromEvent(document.getElementById("name"), "input");
+
+    tagsObservable
       .pipe(debounceTime(1000))
       .subscribe((e) => setTag(e.target.value));
-    fromEvent(document.getElementById("countrycode"), "input")
+
+    ccObservable
       .pipe(debounceTime(1000))
       .subscribe((e) => setCountrycode(e.target.value));
-    fromEvent(document.getElementById("name"), "input")
+
+    nameObservable
       .pipe(debounceTime(1000))
       .subscribe((e) => setName(e.target.value));
+
+    const s1 = tagsObservable.subscribe(() => {
+      document.getElementById("countrycode").value = ""
+      document.getElementById("name").value = ""
+    });
+    const s2 = ccObservable.subscribe(() => {
+      document.getElementById("tags").value = ""
+      document.getElementById("name").value = ""
+    });
+    const s3 = nameObservable.subscribe(() => {
+      document.getElementById("tags").value = ""
+      document.getElementById("countrycode").value = ""
+    });
+
     fetch("/favorites")
       .then((data) => data.json())
-      .then(setFavorites)
+      .then(setFavorites);
+
+    return () => {
+      s1.unsubscribe();
+      s2.unsubscribe();
+      s3.unsubscribe();
+    };
   }, []);
 
   React.useEffect(() => {
@@ -35,6 +64,7 @@ export default function Main() {
       ? "name"
       : undefined;
     const value = tag || countrycode || name;
+    console.log({ value });
     if (searchField) {
       fetch(`/by${searchField}/` + value, {
         method: "GET",
@@ -47,17 +77,29 @@ export default function Main() {
 
   return (
     <div>
-      <input type="text" id="tags" placeholder="by tag" />
-      <input type="text" id="countrycode" placeholder="by country" />
-      <input type="text" id="name" placeholder="by name" />
-      <Button
-        text="favs"
-        onClick={() => {
-          fetch("/favorites")
-            .then((data) => data.json())
-            .then(setChannels);
-        }}
-      />
+      <div>
+        <input className="little-" type="text" id="tags" placeholder="by tag" />
+        <input
+          className="little-margin"
+          type="text"
+          id="countrycode"
+          placeholder="by country"
+        />
+        <input
+          className="little-margin"
+          type="text"
+          id="name"
+          placeholder="by name"
+        />
+        <Button
+          text="favs"
+          onClick={() => {
+            fetch("/favorites")
+              .then((data) => data.json())
+              .then(setChannels);
+          }}
+        />
+      </div>
       <RadioList favorites={favorites} channels={channels} />
     </div>
   );
