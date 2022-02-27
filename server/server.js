@@ -1,15 +1,17 @@
-import f from "fastify";
-import got from "got";
-import { server, endpoints } from "./api/radioBrowser.js";
+#!/usr/bin/env node
+import * as fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { dirname, normalize } from "path";
-import * as R from "ramda";
+import f from "fastify";
 import fastifyStatic from "fastify-static";
+import got from "got";
+import * as R from "ramda";
 import { parse } from "uri-template";
-import * as fs from "fs/promises";
+import { server, endpoints } from "./api/radioBrowser.js";
 
 const fastify = f({ logger: true });
 const PORT = 3335;
+const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`;
 
 fastify.register(fastifyStatic, {
   root: R.pipe(
@@ -20,12 +22,23 @@ fastify.register(fastifyStatic, {
   )(import.meta.url),
 });
 
+fastify.addHook("onRequest", (_, __, done) => {
+  fs.readFile(STORAGE_FILE)
+    .then(() => done())
+    .catch(() => {
+      fs.writeFile(STORAGE_FILE, JSON.stringify({}), {
+        encoding: "utf-8",
+      })
+        .then(() => done());
+    });
+});
+
 fastify.get("/", async (_, reply) => {
   reply.status(200).type("text/html").sendFile("./index.html");
 });
 
 fastify.get("/favorites", (_, reply) => {
-  fs.readFile(`${dirname(fileURLToPath(import.meta.url))}/store.json`)
+  fs.readFile(STORAGE_FILE)
     .then((data) => data.toString())
     .then(JSON.parse)
     .then(R.prop("favorites"))
@@ -48,7 +61,6 @@ fastify.get("/stations", async (_, reply) =>
 );
 
 fastify.get("/bytag/:tag", async (request, reply) => {
-  console.log({ param: request.params.tag });
   console.log("sever goes ._.");
   got(
     parse(server + "/json" + endpoints.byTagExact).expand({
@@ -99,8 +111,25 @@ fastify.get("/byname/:name", async (request, reply) => {
     });
 });
 
+fastify.get("/clicked/:uuid", async (request, reply) => {
+  console.log("sever goes ._.");
+  got(
+    parse(server + "/json" + endpoints.clickCounter).expand({
+      stationuuid: request.params.uuid,
+    })
+  )
+    .json()
+    .then((value) => reply.status(200).send(value))
+    .catch((e) => {
+      reply.status(500).send({
+        error: e,
+        message: "something went wrong",
+      });
+    });
+});
+
 fastify.post("/write/addStation/:uuid", (request, reply) => {
-  fs.readFile(`${dirname(fileURLToPath(import.meta.url))}/store.json`)
+  fs.readFile(STORAGE_FILE)
     .then((data) => data.toString())
     .then(JSON.parse)
     .then((store) =>
@@ -109,7 +138,7 @@ fastify.post("/write/addStation/:uuid", (request, reply) => {
     .then(JSON.stringify)
     .then((data) =>
       fs.writeFile(
-        `${dirname(fileURLToPath(import.meta.url))}/store.json`,
+        STORAGE_FILE,
         data,
         { encoding: "utf-8" }
       )
@@ -120,7 +149,7 @@ fastify.post("/write/addStation/:uuid", (request, reply) => {
 });
 
 fastify.post("/write/removeStation/:uuid", (request, reply) => {
-  fs.readFile(`${dirname(fileURLToPath(import.meta.url))}/store.json`)
+  fs.readFile(STORAGE_FILE)
     .then((data) => data.toString())
     .then(JSON.parse)
     .then((store) =>
@@ -133,7 +162,7 @@ fastify.post("/write/removeStation/:uuid", (request, reply) => {
     .then(JSON.stringify)
     .then((data) =>
       fs.writeFile(
-        `${dirname(fileURLToPath(import.meta.url))}/store.json`,
+        STORAGE_FILE,
         data,
         { encoding: "utf-8" }
       )

@@ -2,7 +2,7 @@ export const server = "https://fr1.api.radio-browser.info";
 
 export const endpoints = {
   allStations: "/stations",
-  clickCounter: "/json/url/{stationuuid}",
+  clickCounter: "/url/{stationuuid}",
   countries: "/countries",
   codecs: "/codecs",
   tags: "/tags",

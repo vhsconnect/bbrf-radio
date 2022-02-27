@@ -5,7 +5,12 @@ const RadioList = ({ channels, favorites }) => {
   return (
     <div>
       {channels.map((x, y) => (
-        <Radio favorites={favorites} key={`radio-${y}`} info={x} />
+        <Radio
+          favorites={favorites}
+          identifier={`radio-${y}`}
+          key={`radio-${y}`}
+          info={x}
+        />
       ))}
     </div>
   );

@@ -24,28 +24,19 @@ export default function Main() {
     fetch("/favorites")
       .then((data) => data.json())
       .then(setFavorites)
-      .then((x) => console.log(">>>>fetched", x));
   }, []);
 
   React.useEffect(() => {
-    if (tag !== "") {
-      fetch("/bytag/" + tag, {
-        method: "GET",
-      })
-        .then((data) => data.json())
-        .then(setChannels)
-        .catch((e) => console.error(e));
-    }
-    if (countrycode !== "") {
-      fetch("/bycountrycode/" + countrycode, {
-        method: "GET",
-      })
-        .then((data) => data.json())
-        .then(setChannels)
-        .catch((e) => console.error(e));
-    }
-    if (name !== "") {
-      fetch("/byname/" + name, {
+    const searchField = tag
+      ? "tag"
+      : countrycode
+      ? "countrycode"
+      : name
+      ? "name"
+      : undefined;
+    const value = tag || countrycode || name;
+    if (searchField) {
+      fetch(`/by${searchField}/` + value, {
         method: "GET",
       })
         .then((data) => data.json())
