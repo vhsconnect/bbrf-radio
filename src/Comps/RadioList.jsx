@@ -1,5 +1,5 @@
-import React from "react";
-import Radio from "./Radio";
+import React from 'react'
+import Radio from './Radio'
 
 const RadioList = ({ channels, favorites }) => {
   return (
@@ -13,7 +13,7 @@ const RadioList = ({ channels, favorites }) => {
         />
       ))}
     </div>
-  );
-};
+  )
+}
 
-export default RadioList;
+export default RadioList

@@ -1,37 +1,35 @@
-import React from "react";
-import RadioList from "./RadioList";
-import Button from "./Button";
-import useRegisterObservables from "../hooks/useRegisterObservables";
+import React from 'react'
+import RadioList from './RadioList'
+import Button from './Button'
+import useRegisterObservables from '../hooks/useRegisterObservables'
 
 export default function Main() {
-
-  const [channels, setChannels] = React.useState([]);
-  const [tag, setTag] = React.useState("");
-  const [countrycode, setCountrycode] = React.useState("");
-  const [name, setName] = React.useState("");
-  const [favorites, setFavorites] = React.useState([]);
+  const [channels, setChannels] = React.useState([])
+  const [tag, setTag] = React.useState('')
+  const [countrycode, setCountrycode] = React.useState('')
+  const [name, setName] = React.useState('')
+  const [favorites, setFavorites] = React.useState([])
 
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
   React.useEffect(() => {
     const searchField = tag
-      ? "tag"
+      ? 'tag'
       : countrycode
-      ? "countrycode"
+      ? 'countrycode'
       : name
-      ? "name"
-      : undefined;
-    const value = tag || countrycode || name;
-    console.log({ value });
+      ? 'name'
+      : undefined
+    const value = tag || countrycode || name
     if (searchField) {
       fetch(`/by${searchField}/` + value, {
-        method: "GET",
+        method: 'GET',
       })
-        .then((data) => data.json())
+        .then(data => data.json())
         .then(setChannels)
-        .catch((e) => console.error(e));
+        .catch(e => console.error(e))
     }
-  }, [tag, countrycode, name]);
+  }, [tag, countrycode, name])
 
   return (
     <div>
@@ -52,13 +50,13 @@ export default function Main() {
         <Button
           text="favs"
           onClick={() => {
-            fetch("/favorites")
-              .then((data) => data.json())
-              .then(setChannels);
+            fetch('/favorites')
+              .then(data => data.json())
+              .then(setChannels)
           }}
         />
       </div>
       <RadioList favorites={favorites} channels={channels} />
     </div>
-  );
+  )
 }
