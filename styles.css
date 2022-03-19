@@ -3,15 +3,14 @@
   color: aquamarine;
 }
 
-.button {
+button {
   padding: 5px;
   border: solid aqua 1px;
   border-radius: 2px;
 }
+
 .button-disabled {
-  padding: 5px;
-  background-color: darkgray;
-  border-radius: 2px;
+  opacity: 0.35;
 }
 .radio-player {
   display: flex;

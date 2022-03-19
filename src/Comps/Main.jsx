@@ -62,7 +62,7 @@ export default function Main() {
       </div>
       <Player
         currentStation={currentStation}
-        setCurrentStation={R.pipe(currentStation.next, setCurrentStation)}
+        favorites={favorites}
         backtrackCurrentStation={R.pipe(
           currentStation.remove,
           setCurrentStation

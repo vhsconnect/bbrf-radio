@@ -9,14 +9,19 @@ const fader = interval(20).pipe(
   takeWhile(R.flip(R.gte)(0))
 )
 
-const Player = ({ currentStation, backtrackCurrentStation }) => {
+const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
   const current = currentStation.current?.stream
   const last = currentStation.last?.stream
+  const isFav = x => 
+    R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
 
   React.useEffect(() => {
     if (currentStation.up()) {
       current.onplaying = () => {
-        last && 
+        fetch('/clicked/' + currentStation.current.stationuuid).catch(e =>
+          console.error(e)
+        )
+        last &&
           fader.subscribe({
             next(x) {
               last.volume = x
@@ -40,6 +45,31 @@ const Player = ({ currentStation, backtrackCurrentStation }) => {
         }}
       />
       {currentStation.current.name}
+      <div>
+        <Button
+          title="add to favs"
+          disabled={isFav(currentStation.current)}
+          text="🌟"
+          onClick={() => {
+            fetch('/write/addStation/' + currentStation.current.stationuuid, {
+              method: 'POST',
+            })
+          }}
+        />
+        <Button
+          title="remove from favs"
+          disabled={!isFav(currentStation.current)}
+          text="🚮"
+          onClick={() => {
+            fetch(
+              '/write/removeStation/' + currentStation.current.stationuuid,
+              {
+                method: 'POST',
+              }
+            )
+          }}
+        />
+      </div>
       <input
         type="range"
         min={0}
