@@ -4,7 +4,7 @@ import RadioList from './RadioList'
 import Button from './Button'
 import Player from './Player'
 import useRegisterObservables from '../hooks/useRegisterObservables'
-import radioController from '../utils/radioController'
+import radioModel from '../utils/radioModel'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -12,7 +12,7 @@ export default function Main() {
   const [countrycode, setCountrycode] = React.useState('')
   const [name, setName] = React.useState('')
   const [favorites, setFavorites] = React.useState([])
-  const [currentStation, setCurrentStation] = React.useState(radioController())
+  const [stationController, setStationController] = React.useState(radioModel())
 
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
@@ -61,17 +61,17 @@ export default function Main() {
         />
       </div>
       <Player
-        currentStation={currentStation}
+        stationController={stationController}
         favorites={favorites}
         backtrackCurrentStation={R.pipe(
-          currentStation.remove,
-          setCurrentStation
+          stationController.remove,
+          setStationController
         )}
       />
       <RadioList
         favorites={favorites}
         channels={channels}
-        setCurrentStation={R.pipe(currentStation.next, setCurrentStation)}
+        setStationController={R.pipe(stationController.next, setStationController)}
       />
     </div>
   )

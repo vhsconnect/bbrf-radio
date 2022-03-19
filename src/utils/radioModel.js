@@ -1,9 +1,9 @@
 import * as R from 'ramda'
-const radioController = (v = []) => {
+const radioModel = (v = []) => {
   const pub = {
     values: v,
     next(x) {
-      return radioController(
+      return radioModel(
         this.values.concat({
           ...x,
           stream: new Audio(x.url_resolved),
@@ -14,7 +14,7 @@ const radioController = (v = []) => {
       return this.values.length > 1 && this.values[this.values.length - 2]
     },
     remove() {
-      return radioController(R.take(R.length(this.values) - 1, this.values))
+      return radioModel(R.take(R.length(this.values) - 1, this.values))
     },
     get current() {
       return this.values[this.values.length - 1]
@@ -30,4 +30,4 @@ const radioController = (v = []) => {
   return pub
 }
 
-export default radioController
+export default radioModel

@@ -5,10 +5,10 @@ import { takeWhile, map } from 'rxjs/operators'
 import * as R from 'ramda'
 const MS_TO_VOLUME_RATIO = 20
 
-const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
+const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
   const [volume, setVolume] = React.useState(1)
-  const current = currentStation.current?.stream
-  const last = currentStation.last?.stream
+  const current = stationController.current?.stream
+  const last = stationController.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
   const fader = interval(MS_TO_VOLUME_RATIO / (volume || 1)).pipe(
@@ -18,9 +18,9 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
 
   // handle change stations
   React.useEffect(() => {
-    if (currentStation.up()) {
+    if (stationController.up()) {
       current.onplaying = () => {
-        fetch('/clicked/' + currentStation.current.stationuuid).catch(e =>
+        fetch('/clicked/' + stationController.current.stationuuid).catch(e =>
           console.error(e)
         )
         last &&
@@ -37,7 +37,7 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
       current.volume = volume
       current.play().catch(backtrackCurrentStation)
     }
-  }, [currentStation])
+  }, [stationController])
 
   // handle change volume
   React.useEffect(() => {
@@ -52,25 +52,25 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
           current.paused ? current.play() : current.pause()
         }}
       />
-      {currentStation.current.name}
+      {stationController.current.name}
       <div>
         <Button
           title="add to favs"
-          disabled={isFav(currentStation.current)}
+          disabled={isFav(stationController.current)}
           text="🌟"
           onClick={() => {
-            fetch('/write/addStation/' + currentStation.current.stationuuid, {
+            fetch('/write/addStation/' + stationController.current.stationuuid, {
               method: 'POST',
             })
           }}
         />
         <Button
           title="remove from favs"
-          disabled={!isFav(currentStation.current)}
+          disabled={!isFav(stationController.current)}
           text="🚮"
           onClick={() => {
             fetch(
-              '/write/removeStation/' + currentStation.current.stationuuid,
+              '/write/removeStation/' + stationController.current.stationuuid,
               {
                 method: 'POST',
               }

@@ -1,15 +1,15 @@
 import React from 'react'
-import Radio2 from './Radio2'
+import Radio from './Radio'
 
-const RadioList = ({ channels, favorites, setCurrentStation }) => (
+const RadioList = ({ channels, favorites, setStationController }) => (
   <div>
     {channels.map((x, y) => (
-      <Radio2
+      <Radio
         favorites={favorites}
         identifier={`radio-${y}`}
         key={`radio-${y}`}
         info={x}
-        setCurrentStation={setCurrentStation}
+        setStationController={setStationController}
       />
     ))}
   </div>

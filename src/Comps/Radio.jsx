@@ -1,10 +1,9 @@
 import React from 'react'
 import Button from './Button'
 
-const Radio2 = ({ info, setCurrentStation  }) => {
-
+const Radio = ({ info, setStationController }) => {
   const onClick = () => {
-    setCurrentStation(info)
+    setStationController(info)
     fetch('/clicked/' + info.stationuuid).catch(e => console.error(e))
   }
 
@@ -15,4 +14,4 @@ const Radio2 = ({ info, setCurrentStation  }) => {
   )
 }
 
-export default Radio2
+export default Radio
