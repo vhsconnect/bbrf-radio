@@ -4,17 +4,18 @@ import { interval } from 'rxjs'
 import { takeWhile, map } from 'rxjs/operators'
 import * as R from 'ramda'
 
-const fader = interval(20).pipe(
-  map(R.pipe(R.subtract(100), R.flip(R.divide)(100))),
-  takeWhile(R.flip(R.gte)(0))
-)
-
 const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
+  const [volume, setVolume] = React.useState(1)
   const current = currentStation.current?.stream
   const last = currentStation.last?.stream
-  const isFav = x => 
+  const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
+  const fader = interval(20).pipe(
+    map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
+    takeWhile(R.flip(R.gte)(0))
+  )
 
+  // handle change stations
   React.useEffect(() => {
     if (currentStation.up()) {
       current.onplaying = () => {
@@ -32,9 +33,15 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
             },
           })
       }
+      current.volume = volume
       current.play().catch(backtrackCurrentStation)
     }
   }, [currentStation])
+
+  // handle change volume
+  React.useEffect(() => {
+    if (current) current.volume = volume
+  }, [volume])
 
   return current ? (
     <div className="radio-player">
@@ -74,9 +81,9 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
         type="range"
         min={0}
         max={10}
-        defaultValue={current?.volume * 10 || 10}
+        defaultValue={volume * 10}
         onChange={e => {
-          current.volume = e.target.value / 10
+          setVolume(e.target.value / 10)
         }}
       />
     </div>
