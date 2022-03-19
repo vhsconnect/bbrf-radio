@@ -1,7 +1,10 @@
 import React from 'react'
+import * as R from 'ramda'
 import RadioList from './RadioList'
 import Button from './Button'
+import Player from './Player'
 import useRegisterObservables from '../hooks/useRegisterObservables'
+import radioController from '../utils/radioController'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -9,6 +12,7 @@ export default function Main() {
   const [countrycode, setCountrycode] = React.useState('')
   const [name, setName] = React.useState('')
   const [favorites, setFavorites] = React.useState([])
+  const [currentStation, setCurrentStation] = React.useState(radioController())
 
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
@@ -32,7 +36,7 @@ export default function Main() {
   }, [tag, countrycode, name])
 
   return (
-    <div>
+    <div id="player">
       <div>
         <input className="little-" type="text" id="tags" placeholder="by tag" />
         <input
@@ -56,7 +60,19 @@ export default function Main() {
           }}
         />
       </div>
-      <RadioList favorites={favorites} channels={channels} />
+      <Player
+        currentStation={currentStation}
+        setCurrentStation={R.pipe(currentStation.next, setCurrentStation)}
+        backtrackCurrentStation={R.pipe(
+          currentStation.remove,
+          setCurrentStation
+        )}
+      />
+      <RadioList
+        favorites={favorites}
+        channels={channels}
+        setCurrentStation={R.pipe(currentStation.next, setCurrentStation)}
+      />
     </div>
   )
 }

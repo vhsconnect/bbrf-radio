@@ -13,11 +13,15 @@
   background-color: darkgray;
   border-radius: 2px;
 }
-.flex {
+.radio-player {
   display: flex;
   justify-content: space-around;
+  border: solid aqua 1px;
+  border-radius: 3px;
+  padding: 10px
 }
 .little-margin {
   margin: 10px;
   padding: 2px;
 }
+
