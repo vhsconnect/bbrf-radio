@@ -3,6 +3,7 @@ import Button from './Button'
 import { interval } from 'rxjs'
 import { takeWhile, map } from 'rxjs/operators'
 import * as R from 'ramda'
+const MS_TO_VOLUME_RATIO = 20
 
 const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
   const [volume, setVolume] = React.useState(1)
@@ -10,7 +11,7 @@ const Player = ({ currentStation, backtrackCurrentStation, favorites }) => {
   const last = currentStation.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
-  const fader = interval(20).pipe(
+  const fader = interval(MS_TO_VOLUME_RATIO / (volume || 1)).pipe(
     map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
     takeWhile(R.flip(R.gte)(0))
   )
