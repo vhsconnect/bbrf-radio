@@ -13,7 +13,6 @@ const Radio = ({ info, favorites, identifier }) => {
     )
   }, [])
 
-  console.log({ info })
   const isFav = R.includes(info.stationuuid)(
     R.map(R.prop('stationuuid'), favorites)
   )
