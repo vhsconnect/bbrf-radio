@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "nodemon server/server.js & yarn run hot",
     "app": "node server/server.js",
-    "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch"
+    "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
+    "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js"
   },
   "dependencies": {
     "esbuild": "^0.14.23",
