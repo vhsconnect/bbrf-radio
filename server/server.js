@@ -45,6 +45,10 @@ fastify.get('/favorites', (_, reply) => {
     .then(data => parse(endpoints.byUUIDS).expand({ uuids: data }))
     .then(data => got(server + '/json/' + data).json())
     .then(value => reply.status(200).send(value))
+    .catch(e => {
+      console.error('favorites', e)
+      reply.status(500)
+    })
 })
 
 fastify.get('/stations', async (_, reply) =>
