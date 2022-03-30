@@ -5,6 +5,7 @@ import Button from './Button'
 import Player from './Player'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import radioModel from '../utils/radioModel'
+import Flag from './Flag'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -68,11 +69,20 @@ export default function Main() {
           setStationController
         )}
       />
-      <RadioList
-        favorites={favorites}
-        channels={channels}
-        setStationController={R.pipe(stationController.next, setStationController)}
-      />
+      <div className="under-player">
+        <RadioList
+          favorites={favorites}
+          channels={channels}
+          setStationController={R.pipe(
+            stationController.next,
+            setStationController
+          )}
+        />
+
+        {stationController.current && (
+          <Flag countrycode={stationController.current?.countrycode} />
+        )}
+      </div>
     </div>
   )
 }

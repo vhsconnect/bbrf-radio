@@ -23,4 +23,14 @@ button {
   margin: 10px;
   padding: 2px;
 }
+.under-player {
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
 
+.flag {
+  max-width: 100px;
+  border-radius: 8%;
+}

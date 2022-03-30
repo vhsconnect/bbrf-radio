@@ -19,6 +19,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
+      current.onerror = (message, source, lineno, colno, error) => {}
       current.onplaying = () => {
         fetch('/clicked/' + stationController.current.stationuuid).catch(e =>
           console.error(e)
@@ -59,9 +60,12 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
           disabled={isFav(stationController.current)}
           text="🌟"
           onClick={() => {
-            fetch('/write/addStation/' + stationController.current.stationuuid, {
-              method: 'POST',
-            })
+            fetch(
+              '/write/addStation/' + stationController.current.stationuuid,
+              {
+                method: 'POST',
+              }
+            )
           }}
         />
         <Button
