@@ -1,4 +1,4 @@
-export const server = 'https://fr1.api.radio-browser.info'
+export const server = 'https://de1.api.radio-browser.info'
 
 export const endpoints = {
   allStations: '/stations',
