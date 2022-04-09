@@ -5,24 +5,29 @@
 
 button {
   padding: 5px;
-  border: solid aqua 1px;
+  border: solid aquamarine 1px;
   border-radius: 2px;
 }
 
 .button-disabled {
   opacity: 0.35;
 }
+
 .radio-player {
   display: flex;
   justify-content: space-around;
-  border: solid aqua 1px;
+  border: solid aquamarine 1px;
   border-radius: 3px;
-  padding: 10px
+  padding: 10px;
 }
-.little-margin {
+
+.input-fields {
   margin: 10px;
-  padding: 2px;
+  padding: 5px;
+  border-color: aquamarine;
+  border-radius: 2px;
 }
+
 .under-player {
   padding-top: 10px;
   display: flex;

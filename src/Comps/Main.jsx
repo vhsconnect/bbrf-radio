@@ -16,7 +16,8 @@ export default function Main() {
   const [favorites, setFavorites] = React.useState([])
   const [stationController, setStationController] = React.useState(radioModel())
   const [radioServer, setRadioServer] = React.useState('')
-
+  
+  // observables on input fields
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
   React.useEffect(() => {
@@ -46,17 +47,17 @@ export default function Main() {
   }, [])
 
   return (
-    <div id="player">
+    <div>
       <div>
-        <input className="little-" type="text" id="tags" placeholder="by tag" />
+        <input className="input-fields" type="text" id="tags" placeholder="by tag" />
         <input
-          className="little-margin"
+          className="input-fields"
           type="text"
           id="countrycode"
           placeholder="by country"
         />
         <input
-          className="little-margin"
+          className="input-fields"
           type="text"
           id="name"
           placeholder="by name"
