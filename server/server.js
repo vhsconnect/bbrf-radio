@@ -8,6 +8,7 @@ import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
 import { endpoints } from './api/radioBrowser.js'
+import { fav } from './models/fav.js'
 
 let server = 'https://de1.api.radio-browser.info'
 
@@ -68,6 +69,7 @@ fastify.get('/favorites', (_, reply) => {
     .then(data => data.toString())
     .then(JSON.parse)
     .then(R.prop('favorites'))
+    .then(R.pluck('id'))
     .then(R.join(','))
     .then(data => parse(endpoints.byUUIDS).expand({ uuids: data }))
     .then(data => got(server + '/json/' + data).json())
@@ -167,7 +169,11 @@ fastify.post('/write/addStation/:uuid', (request, reply) => {
     .then(data => data.toString())
     .then(JSON.parse)
     .then(store =>
-      R.assoc('favorites', store.favorites.concat(request.params.uuid), store)
+      R.assoc(
+        'favorites',
+        store.favorites.concat(fav({ id: request.params.uuid })),
+        store
+      )
     )
     .then(JSON.stringify)
     .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
@@ -183,7 +189,7 @@ fastify.post('/write/removeStation/:uuid', (request, reply) => {
     .then(store =>
       R.assoc(
         'favorites',
-        R.reject(R.equals(request.params.uuid), store.favorites),
+        R.reject(R.equals(fav({ id: request.params.uuid })), store.favorites),
         store
       )
     )
