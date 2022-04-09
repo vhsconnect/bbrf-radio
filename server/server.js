@@ -7,7 +7,9 @@ import fastifyStatic from 'fastify-static'
 import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
-import { server, endpoints } from './api/radioBrowser.js'
+import { endpoints } from './api/radioBrowser.js'
+
+let server = 'https://de1.api.radio-browser.info'
 
 const fastify = f({ logger: true })
 const PORT = 3335
@@ -32,8 +34,33 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
+fastify.addHook('onReady', done => {
+  return Promise.race(
+    [
+      'https://de1.api.radio-browser.info',
+      'https://nl1.api.radio-browser.info',
+      'https://fr1.api.radio-browser.info',
+    ]
+      .map(x => x + '/json' + endpoints.servers)
+      .map(x => got(x).json())
+  )
+    .then(
+      R.pipe(
+        R.head,
+        R.prop('name'),
+        R.tap(x => (server = 'https://' + x)),
+        () => done()
+      )
+    )
+    .catch(e => console.error('ERROR trying to fetch server: ', e))
+})
+
 fastify.get('/', async (_, reply) => {
-  reply.status(200).type('text/html').sendFile('./index.html')
+  reply
+    .headers({ radioBowserServer: server })
+    .status(200)
+    .type('text/html')
+    .sendFile('./index.html')
 })
 
 fastify.get('/favorites', (_, reply) => {
@@ -80,7 +107,7 @@ fastify.get('/bytag/:tag', async (request, reply) => {
     })
 })
 
-fastify.get('/bycountrycode/:cc', async (request, reply) => {
+fastify.get('/bycountrycode/:cc', (request, reply) => {
   console.log('sever goes ._.')
   got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
@@ -97,7 +124,7 @@ fastify.get('/bycountrycode/:cc', async (request, reply) => {
     })
 })
 
-fastify.get('/byname/:name', async (request, reply) => {
+fastify.get('/byname/:name', (request, reply) => {
   console.log('sever goes ._.')
   got(
     parse(server + '/json' + endpoints.byName).expand({
@@ -129,6 +156,10 @@ fastify.get('/clicked/:uuid', async (request, reply) => {
         message: 'something went wrong',
       })
     })
+})
+
+fastify.get('/radio-server', (request, reply) => {
+  reply.status(200).send({ server })
 })
 
 fastify.post('/write/addStation/:uuid', (request, reply) => {

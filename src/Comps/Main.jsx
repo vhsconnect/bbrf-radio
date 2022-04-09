@@ -3,6 +3,7 @@ import * as R from 'ramda'
 import RadioList from './RadioList'
 import Button from './Button'
 import Player from './Player'
+import Teleprompt from './Teleprompt'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
@@ -14,6 +15,7 @@ export default function Main() {
   const [name, setName] = React.useState('')
   const [favorites, setFavorites] = React.useState([])
   const [stationController, setStationController] = React.useState(radioModel())
+  const [radioServer, setRadioServer] = React.useState('')
 
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
@@ -35,6 +37,13 @@ export default function Main() {
         .catch(e => console.error(e))
     }
   }, [tag, countrycode, name])
+
+  React.useEffect(() => {
+    fetch('/radio-server')
+      .then(data => data.json())
+      .then(R.prop('server'))
+      .then(setRadioServer)
+  }, [])
 
   return (
     <div id="player">
@@ -61,6 +70,9 @@ export default function Main() {
           }}
         />
       </div>
+      {radioServer && (
+        <Teleprompt ms={30} text={`Connected to ${radioServer}`} />
+      )}
       <Player
         stationController={stationController}
         favorites={favorites}

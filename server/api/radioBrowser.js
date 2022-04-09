@@ -16,4 +16,5 @@ export const endpoints = {
   byCountrycodeExact: '/stations/bycountrycodeexact/{searchterm}',
   byTag: '/stations/bytag/{searchterm}',
   byTagExact: '/stations/bytagexact/{searchterm}',
+  servers: '/servers'
 }
