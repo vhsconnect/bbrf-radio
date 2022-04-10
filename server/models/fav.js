@@ -1,5 +1,5 @@
-export const fav = ({ id }) => ({
+export const fav = ({ id, with20delay, with30delay }) => ({
   id,
-  with20delay: false,
-  with30delay: false,
+  with20delay,
+  with30delay
 })

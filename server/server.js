@@ -65,15 +65,27 @@ fastify.get('/', async (_, reply) => {
 })
 
 fastify.get('/favorites', (_, reply) => {
+  let storage
   fs.readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
+    .then(
+      R.tap(x => {
+        storage = x
+      })
+    )
     .then(R.prop('favorites'))
     .then(R.pluck('id'))
     .then(R.join(','))
     .then(data => parse(endpoints.byUUIDS).expand({ uuids: data }))
     .then(data => got(server + '/json/' + data).json())
-    .then(value => reply.status(200).send(value))
+    .then(
+      R.map(x => ({
+        ...x,
+        ...R.find(R.propEq('id', x.stationuuid), storage.favorites),
+      }))
+    )
+    .then(data => reply.status(200).send(data))
     .catch(e => {
       console.error('favorites', e)
       reply.status(500)
@@ -171,7 +183,36 @@ fastify.post('/write/addStation/:uuid', (request, reply) => {
     .then(store =>
       R.assoc(
         'favorites',
-        store.favorites.concat(fav({ id: request.params.uuid })),
+        store.favorites.concat(
+          fav({
+            id: request.params.uuid,
+            with20delay: false,
+            with30delay: false,
+          })
+        ),
+        store
+      )
+    )
+    .then(JSON.stringify)
+    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
+    .then(() => console.log('wrote file succesffuly ._.'))
+    .then(() => reply.status(200).send())
+    .catch(e => console.log('>> ERROR >>', e))
+})
+
+fastify.put('/write/add20/:uuid', (request, reply) => {
+  fs.readFile(STORAGE_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(store =>
+      R.assoc(
+        'favorites',
+        R.map(
+          R.when(R.propEq('id', request.params.uuid), x => ({
+            ...x,
+            with20delay: true,
+          }))
+        )(store.favorites),
         store
       )
     )
@@ -189,7 +230,7 @@ fastify.post('/write/removeStation/:uuid', (request, reply) => {
     .then(store =>
       R.assoc(
         'favorites',
-        R.reject(R.equals(fav({ id: request.params.uuid })), store.favorites),
+        R.reject(R.propEq('id', request.params.uuid), store.favorites),
         store
       )
     )

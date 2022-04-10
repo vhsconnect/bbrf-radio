@@ -1,8 +1,9 @@
 import React from 'react'
 import Button from './Button'
 import { interval } from 'rxjs'
-import { takeWhile, map } from 'rxjs/operators'
+import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
+import Teleprompt from './Teleprompt'
 const MS_TO_VOLUME_RATIO = 20
 
 const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
@@ -11,16 +12,22 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
   const last = stationController.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
+  const withDelay = last && stationController.current.with20delay
   const fader = interval(MS_TO_VOLUME_RATIO / (volume || 1)).pipe(
     map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
-    takeWhile(R.flip(R.gte)(0))
+    takeWhile(R.flip(R.gte)(0)),
+    R.when(() => withDelay, delay(20000))
   )
+  const opposite = number => volume - number
 
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
       current.onerror = (message, source, lineno, colno, error) => {}
       current.onplaying = () => {
+        if (withDelay) {
+          current.volume = 0
+        } //set original volume while commercial is playing
         fetch('/clicked/' + stationController.current.stationuuid).catch(e =>
           console.error(e)
         )
@@ -28,6 +35,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
           fader.subscribe({
             next(x) {
               last.volume = x
+              current.volume = opposite(x)
               x === 0 ? last.pause() : null
             },
             complete() {
@@ -53,7 +61,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
           current.paused ? current.play() : current.pause()
         }}
       />
-      {stationController.current.name}
+      <Teleprompt text={stationController.current.name} ms={60} />
       <div>
         <Button
           title="add to favs"
@@ -79,6 +87,16 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
                 method: 'POST',
               }
             )
+          }}
+        />
+        <Button
+          title="add commerical delay"
+          disabled={!isFav(stationController.current)}
+          text="20+"
+          onClick={() => {
+            fetch('/write/add20/' + stationController.current.stationuuid, {
+              method: 'PUT',
+            })
           }}
         />
       </div>

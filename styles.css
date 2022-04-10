@@ -16,6 +16,7 @@ button {
 .radio-player {
   display: flex;
   justify-content: space-around;
+  align-items: center;
   border: solid aquamarine 1px;
   border-radius: 3px;
   padding: 10px;
