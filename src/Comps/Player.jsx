@@ -28,9 +28,6 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
         if (withDelay) {
           current.volume = 0
         } //set original volume while commercial is playing
-        fetch('/clicked/' + stationController.current.stationuuid).catch(e =>
-          console.error(e)
-        )
         last &&
           fader.subscribe({
             next(x) {

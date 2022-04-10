@@ -7,12 +7,17 @@ import fastifyStatic from 'fastify-static'
 import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
-import { endpoints } from './api/radioBrowser.js'
+import {
+  endpoints,
+  mainServer,
+  radioBrowserMirrors,
+} from './api/radioBrowser.js'
 import { fav } from './models/fav.js'
 
-let server = 'https://de1.api.radio-browser.info'
+// mutable 🚔
+let server = mainServer
 
-const fastify = f({ logger: true })
+const fastify = f({ logger: { level: 'warn' } })
 const PORT = 3335
 const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`
 
@@ -35,13 +40,9 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
-fastify.addHook('onReady', done => {
-  return Promise.race(
-    [
-      'https://de1.api.radio-browser.info',
-      'https://nl1.api.radio-browser.info',
-      'https://fr1.api.radio-browser.info',
-    ]
+fastify.addHook('onReady', done =>
+  Promise.race(
+    radioBrowserMirrors
       .map(x => x + '/json' + endpoints.servers)
       .map(x => got(x).json())
   )
@@ -54,19 +55,20 @@ fastify.addHook('onReady', done => {
       )
     )
     .catch(e => console.error('ERROR trying to fetch server: ', e))
-})
+)
 
-fastify.get('/', async (_, reply) => {
+fastify.get('/', async (_, reply) =>
   reply
     .headers({ radioBowserServer: server })
     .status(200)
     .type('text/html')
     .sendFile('./index.html')
-})
+)
 
 fastify.get('/favorites', (_, reply) => {
-  let storage
-  fs.readFile(STORAGE_FILE)
+  let storage // mutable 🚔
+  return fs
+    .readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(
@@ -104,8 +106,7 @@ fastify.get('/stations', async (_, reply) =>
     })
 )
 
-fastify.get('/bytag/:tag', async (request, reply) => {
-  console.log('sever goes ._.')
+fastify.get('/bytag/:tag', async (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byTagExact).expand({
       searchterm: request.params.tag,
@@ -119,10 +120,9 @@ fastify.get('/bytag/:tag', async (request, reply) => {
         message: 'something went wrong',
       })
     })
-})
+)
 
-fastify.get('/bycountrycode/:cc', (request, reply) => {
-  console.log('sever goes ._.')
+fastify.get('/bycountrycode/:cc', (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
       searchterm: request.params.cc,
@@ -131,15 +131,15 @@ fastify.get('/bycountrycode/:cc', (request, reply) => {
     .json()
     .then(value => reply.status(200).send(value))
     .catch(e => {
+      console.log('caught')
       reply.status(500).send({
         error: e,
         message: 'something went wrong',
       })
     })
-})
+)
 
-fastify.get('/byname/:name', (request, reply) => {
-  console.log('sever goes ._.')
+fastify.get('/byname/:name', (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byName).expand({
       searchterm: request.params.name,
@@ -153,31 +153,29 @@ fastify.get('/byname/:name', (request, reply) => {
         message: 'something went wrong',
       })
     })
-})
+)
 
-fastify.get('/clicked/:uuid', async (request, reply) => {
-  console.log('sever goes ._.')
+fastify.get('/clicked/:uuid', async (request, reply) =>
   got(
     parse(server + '/json' + endpoints.clickCounter).expand({
       stationuuid: request.params.uuid,
     })
   )
     .json()
-    .then(value => reply.status(200).send(value))
+    .then(() => reply.status(200))
     .catch(e => {
       reply.status(500).send({
         error: e,
         message: 'something went wrong',
       })
     })
-})
+)
 
-fastify.get('/radio-server', (request, reply) => {
-  reply.status(200).send({ server })
-})
+fastify.get('/radio-server', (_, reply) => reply.status(200).send({ server }))
 
-fastify.post('/write/addStation/:uuid', (request, reply) => {
-  fs.readFile(STORAGE_FILE)
+fastify.post('/write/addStation/:uuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(store =>
@@ -198,10 +196,11 @@ fastify.post('/write/addStation/:uuid', (request, reply) => {
     .then(() => console.log('wrote file succesffuly ._.'))
     .then(() => reply.status(200).send())
     .catch(e => console.log('>> ERROR >>', e))
-})
+)
 
-fastify.put('/write/add20/:uuid', (request, reply) => {
-  fs.readFile(STORAGE_FILE)
+fastify.put('/write/add20/:uuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(store =>
@@ -221,10 +220,11 @@ fastify.put('/write/add20/:uuid', (request, reply) => {
     .then(() => console.log('wrote file succesffuly ._.'))
     .then(() => reply.status(200).send())
     .catch(e => console.log('>> ERROR >>', e))
-})
+)
 
-fastify.post('/write/removeStation/:uuid', (request, reply) => {
-  fs.readFile(STORAGE_FILE)
+fastify.post('/write/removeStation/:uuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(store =>
@@ -239,7 +239,7 @@ fastify.post('/write/removeStation/:uuid', (request, reply) => {
     .then(() => console.log('wrote file succesffuly ._.'))
     .then(() => reply.status(200).send())
     .catch(e => console.log('>> ERROR >>', e))
-})
+)
 
 const start = async () => {
   try {
