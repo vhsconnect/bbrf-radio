@@ -170,8 +170,7 @@ fastify.get('/clicked/:uuid', async (request, reply) =>
       stationuuid: request.params.uuid,
     })
   )
-    .json()
-    .then(() => reply.status(200))
+    .then((data) => reply.status(200).send(data))
     .catch(e => {
       reply.status(500).send({
         error: e,
