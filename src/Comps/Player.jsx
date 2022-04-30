@@ -16,7 +16,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
   const fader = interval(MS_TO_VOLUME_RATIO / (volume || 1)).pipe(
     map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
     takeWhile(R.flip(R.gte)(0)),
-    R.when(() => withDelay, delay(20000))
+    R.when(() => withDelay, delay(20000)) //delay logic
   )
   const opposite = number => volume - number
 
@@ -25,6 +25,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
     if (stationController.up()) {
       current.onerror = (message, source, lineno, colno, error) => {}
       current.onplaying = () => {
+        // delay logic
         if (withDelay) {
           current.volume = 0
         } //set original volume while commercial is playing
