@@ -34,7 +34,7 @@ fastify.addHook('onRequest', (_, __, done) => {
   fs.readFile(STORAGE_FILE)
     .then(() => done())
     .catch(() => {
-      fs.writeFile(STORAGE_FILE, JSON.stringify({}), {
+      fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
         encoding: 'utf-8',
       }).then(() => done())
     })
@@ -54,7 +54,10 @@ fastify.addHook('onReady', done =>
         () => done()
       )
     )
-    .catch(e => console.error('ERROR trying to fetch server: ', e))
+    .catch(e => {
+      console.error('ERROR trying to fetch server: ', e)
+      done()
+    })
 )
 
 fastify.get('/', async (_, reply) =>
@@ -66,28 +69,35 @@ fastify.get('/', async (_, reply) =>
 )
 
 fastify.get('/favorites', (_, reply) => {
-  let storage // mutable 🚔
   return fs
     .readFile(STORAGE_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(
-      R.tap(x => {
-        storage = x
-      })
+      R.pipe(
+        R.prop('favorites'),
+        R.ifElse(
+          R.isEmpty,
+          favorites => reply.status(200).send(favorites),
+          favorites =>
+            R.pipe(
+              R.pluck('id'),
+              R.join(','),
+              data => parse(endpoints.byUUIDS).expand({ uuids: data }),
+              data =>
+                got(server + '/json/' + data)
+                  .json()
+                  .then(
+                    R.map(x => ({
+                      ...x,
+                      ...R.find(R.propEq('id', x.stationuuid), favorites),
+                    }))
+                  )
+                  .then(data => reply.status(200).send(data))
+            )(favorites)
+        )
+      )
     )
-    .then(R.prop('favorites'))
-    .then(R.pluck('id'))
-    .then(R.join(','))
-    .then(data => parse(endpoints.byUUIDS).expand({ uuids: data }))
-    .then(data => got(server + '/json/' + data).json())
-    .then(
-      R.map(x => ({
-        ...x,
-        ...R.find(R.propEq('id', x.stationuuid), storage.favorites),
-      }))
-    )
-    .then(data => reply.status(200).send(data))
     .catch(e => {
       console.error('favorites', e)
       reply.status(500)
@@ -131,7 +141,6 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
     .json()
     .then(value => reply.status(200).send(value))
     .catch(e => {
-      console.log('caught')
       reply.status(500).send({
         error: e,
         message: 'something went wrong',
