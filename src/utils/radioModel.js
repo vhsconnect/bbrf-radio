@@ -1,4 +1,5 @@
 import * as R from 'ramda'
+let slug = 0
 const radioModel = (v = []) => {
   const pub = {
     values: v,
@@ -6,7 +7,7 @@ const radioModel = (v = []) => {
       return radioModel(
         this.values.concat({
           ...x,
-          stream: new Audio(x.url_resolved),
+          stream: new Audio(x.url_resolved + '?' + slug++),
         })
       )
     },

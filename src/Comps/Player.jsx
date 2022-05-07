@@ -59,7 +59,14 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
           current.paused ? current.play() : current.pause()
         }}
       />
-      <Teleprompt text={stationController.current.name} ms={60} />
+      <Teleprompt
+        text={
+          stationController.current.name +
+          ' @ ' +
+          stationController.current.bitrate
+        }
+        ms={60}
+      />
       <div>
         <Button
           title="add to favs"
