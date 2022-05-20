@@ -40,6 +40,11 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
+fastify.addHook('onRequest', (req, reply, done) => {
+  req.headers = { ...req.headers, 'user-agent': 'under development; https://github.com/vhsconnect' }
+  done()
+})
+
 fastify.addHook('onReady', done =>
   Promise.race(
     radioBrowserMirrors
@@ -170,7 +175,7 @@ fastify.get('/clicked/:uuid', async (request, reply) =>
       stationuuid: request.params.uuid,
     })
   )
-    .then((data) => reply.status(200).send(data))
+    .then(data => reply.status(200).send(data))
     .catch(e => {
       reply.status(500).send({
         error: e,
