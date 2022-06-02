@@ -1,22 +1,35 @@
 import React from 'react'
-import { take, interval } from 'rxjs'
+import { concatMap, timer, take, interval, map } from 'rxjs'
 import * as R from 'ramda'
 
-const Teleprompt = ({ text, ms }) => {
+const Teleprompt = ({ textStack, ms }) => {
   const [displayed, setDisplayed] = React.useState('')
+  let subscriptions = []
   React.useEffect(() => {
-    interval(ms)
-      .pipe(take(text.length))
-      .subscribe(x =>
-        setDisplayed(
-          R.concat(
-            R.slice(0, x + 1, text),
-            R.pipe(R.repeat(' '), R.join(''))(text.length - (x + 1))
+    textStack
+      .map(text =>
+        interval(ms).pipe(
+          take(text.length),
+          map(position => ({ position, text }))
+        )
+      )
+      .map(($text, index) => timer(index * 2000).pipe(concatMap(() => $text)))
+      .forEach($text =>
+        subscriptions.push(
+          $text.subscribe(({ position, text }) =>
+            setDisplayed(
+              R.concat(
+                R.slice(0, position + 1, text),
+                R.pipe(R.repeat(' '), R.join(''))(text.length - (position + 1))
+              )
+            )
           )
         )
       )
-    // .subscribe(x => setDisplayed(R.slice(0, x + 1, text)))
-  }, [text])
+    return () => {
+      subscriptions.forEach(x => x.unsubscribe())
+    }
+  }, [textStack])
 
   return (
     <div>

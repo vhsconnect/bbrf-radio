@@ -6,8 +6,14 @@ import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
 const MS_TO_VOLUME_RATIO = 20
 
-const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
+const Player = ({
+  stationController,
+  backtrackCurrentStation,
+  favorites,
+  setStatusStack,
+}) => {
   const [volume, setVolume] = React.useState(1)
+  const [playerTitle, setPlayerTitle] = React.useState([])
   const current = stationController.current?.stream
   const last = stationController.last?.stream
   const isFav = x =>
@@ -23,7 +29,9 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
-      current.onerror = (message, source, lineno, colno, error) => {}
+      current.onerror = (message, source, lineno, colno, error) => {
+        setStatusStack([message])
+      }
       current.onplaying = () => {
         // delay logic
         if (withDelay) {
@@ -43,6 +51,11 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
       }
       current.volume = volume
       current.play().catch(backtrackCurrentStation)
+      setPlayerTitle([
+        stationController.current.name +
+          ' @ ' +
+          stationController.current.bitrate,
+      ])
     }
   }, [stationController])
 
@@ -59,14 +72,7 @@ const Player = ({ stationController, backtrackCurrentStation, favorites }) => {
           current.paused ? current.play() : current.pause()
         }}
       />
-      <Teleprompt
-        text={
-          stationController.current.name +
-          ' @ ' +
-          stationController.current.bitrate
-        }
-        ms={60}
-      />
+      <Teleprompt textStack={playerTitle} ms={60} />
       <div>
         <Button
           title="add to favs"

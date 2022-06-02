@@ -16,7 +16,8 @@ export default function Main() {
   const [favorites, setFavorites] = React.useState([])
   const [stationController, setStationController] = React.useState(radioModel())
   const [radioServer, setRadioServer] = React.useState('')
-  
+  const [statusStack, setStatusStack] = React.useState('')
+
   // observables on input fields
   useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
 
@@ -46,10 +47,19 @@ export default function Main() {
       .then(setRadioServer)
   }, [])
 
+  React.useEffect(() => {
+    setStatusStack([`Connected to ${radioServer}`])
+  }, [radioServer])
+
   return (
     <div>
       <div>
-        <input className="input-fields" type="text" id="tags" placeholder="by tag" />
+        <input
+          className="input-fields"
+          type="text"
+          id="tags"
+          placeholder="by tag"
+        />
         <input
           className="input-fields"
           type="text"
@@ -71,9 +81,7 @@ export default function Main() {
           }}
         />
       </div>
-      {radioServer && (
-        <Teleprompt ms={30} text={`Connected to ${radioServer}`} />
-      )}
+      {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
       <Player
         stationController={stationController}
         favorites={favorites}
@@ -81,6 +89,7 @@ export default function Main() {
           stationController.remove,
           setStationController
         )}
+        setStatusStack={setStatusStack}
       />
       <div className="under-player">
         <RadioList
