@@ -19,6 +19,7 @@ export default function Main() {
   const [stationController, setStationController] = React.useState(radioModel())
   const [scheduled, setScheduled] = React.useState(undefined)
   const [targetDate, setTargetDate] = React.useState(easyDate())
+  const [lockStations, setLockStations] = React.useState(false)
 
   const [radioServer, setRadioServer] = React.useState('')
   const [statusStack, setStatusStack] = React.useState('')
@@ -67,53 +68,58 @@ export default function Main() {
 
   return (
     <div>
-      <div>
-        <input
-          className="input-fields"
-          type="text"
-          id="tags"
-          placeholder="by tag"
-        />
-        <input
-          className="input-fields"
-          type="text"
-          id="countrycode"
-          placeholder="by country"
-        />
-        <input
-          className="input-fields"
-          type="text"
-          id="name"
-          placeholder="by name"
-        />
-        <Button
-          text="favs"
-          onClick={() => {
-            fetch('/favorites')
-              .then(data => data.json())
-              .then(setChannels)
-          }}
-        />
-        <input
-          className="input-fields"
-          type="text"
-          value={targetDate}
-          onChange={e => setTargetDate(e.target.value)}
+      <div className="sticky">
+        <div>
+          <input
+            className="input-fields"
+            type="text"
+            id="tags"
+            placeholder="by tag"
+          />
+          <input
+            className="input-fields"
+            type="text"
+            id="countrycode"
+            placeholder="by country"
+          />
+          <input
+            className="input-fields"
+            type="text"
+            id="name"
+            placeholder="by name"
+          />
+          <Button
+            text="favs"
+            onClick={() => {
+              fetch('/favorites')
+                .then(data => data.json())
+                .then(setChannels)
+            }}
+          />
+          <input
+            className="input-fields"
+            type="text"
+            value={targetDate}
+            onChange={e => setTargetDate(e.target.value)}
+          />
+        </div>
+        {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
+        <Player
+          stationController={stationController}
+          favorites={favorites}
+          setLockStations={setLockStations}
+          backtrackCurrentStation={R.pipe(
+            stationController.remove,
+            setStationController
+          )}
+          setStatusStack={setStatusStack}
         />
       </div>
-      {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
-      <Player
-        stationController={stationController}
-        favorites={favorites}
-        backtrackCurrentStation={R.pipe(
-          stationController.remove,
-          setStationController
-        )}
-        setStatusStack={setStatusStack}
-      />
+
       <div className="under-player">
         <RadioList
           channels={channels}
+          lockStations={lockStations}
           setStationController={R.pipe(
             stationController.next,
             setStationController

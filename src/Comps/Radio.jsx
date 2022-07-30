@@ -1,7 +1,7 @@
 import React from 'react'
 import Button from './Button'
 
-const Radio = ({ info, setStationController }) => {
+const Radio = ({ info, lockStations, setStationController }) => {
   const onClick = () => {
     setStationController(info)
     fetch('/clicked/' + info.stationuuid).catch(e => console.error(e))
@@ -9,7 +9,7 @@ const Radio = ({ info, setStationController }) => {
 
   return (
     <div>
-      <Button text={info.name} onClick={onClick} />
+      <Button disabled={lockStations} text={info.name} onClick={onClick} />
     </div>
   )
 }

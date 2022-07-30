@@ -7,6 +7,7 @@ import { toUnixTimestamp } from '../utils/easyDate'
 const RadioList = ({
   channels,
   setStationController,
+  lockStations,
   targetEasyDate,
   favorites,
 }) => {
@@ -15,6 +16,7 @@ const RadioList = ({
       {channels.map((x, y) => (
         <div key={`radio-${y}`} className="flex-div">
           <Radio
+            lockStations={lockStations}
             identifier={`radio-${y}`}
             info={x}
             setStationController={setStationController}

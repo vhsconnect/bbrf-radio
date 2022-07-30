@@ -61,7 +61,7 @@ export default ({
                 R.prop('scheduled'),
                 R.when(
                   R.propEq('scheduled', currentEasyDate.toString()),
-                  R.pipe(setScheduled)
+                  setScheduled
                 )
               )
             )
@@ -69,7 +69,6 @@ export default ({
         )
         .then(x => setFavorites(x))
     })
-
 
     fetch('/favorites')
       .then(data => data.json())

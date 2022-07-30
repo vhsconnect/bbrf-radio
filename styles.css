@@ -9,7 +9,16 @@ button {
   border-radius: 2px;
 }
 
+.sticky {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  z-index: 10;
+}
 
+.sticky + .under-player {
+  padding-top: 40px;
+}
 
 .button-disabled {
   opacity: 0.35;
@@ -33,10 +42,12 @@ button {
 }
 
 .under-player {
+  opacity: 0.99;
   padding-top: 10px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  z-index: 8;
 }
 
 .flag {
@@ -50,6 +61,6 @@ button {
 
 .right-panel {
   display: flex;
-  flex-direction : column;
+  flex-direction: column;
   align-items: flex-end;
 }

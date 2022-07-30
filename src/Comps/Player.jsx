@@ -11,6 +11,7 @@ const Player = ({
   backtrackCurrentStation,
   favorites,
   setStatusStack,
+  setLockStations,
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
@@ -29,10 +30,13 @@ const Player = ({
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
-      current.onerror = (message, source, lineno, colno, error) => {
+      setLockStations(true)
+      current.onerror = message => {
+        setLockStations(false)
         setStatusStack([message])
       }
       current.onplaying = () => {
+        setLockStations(false)
         // delay logic
         if (withDelay) {
           current.volume = 0

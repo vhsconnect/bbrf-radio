@@ -1,6 +1,10 @@
 import * as R from 'ramda'
-//does this solve the cached audio data problem
+
+//solves the cached audio data problem in chromium
+//not firefox
+//side-effect 🚓
 let slug = 0
+
 const radioModel = (v = []) => {
   const pub = {
     values: v,
@@ -26,7 +30,6 @@ const radioModel = (v = []) => {
     },
   }
 
-  // is this necessary?
   pub.next = pub.next.bind(pub)
   pub.remove = pub.remove.bind(pub)
   pub.up = pub.up.bind(pub)
