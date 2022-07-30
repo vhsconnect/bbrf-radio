@@ -100,16 +100,6 @@ const Player = ({
             )
           }}
         />
-        <Button
-          title="add commerical delay"
-          disabled={!isFav(stationController.current)}
-          text="20+"
-          onClick={() => {
-            fetch('/write/add20/' + stationController.current.stationuuid, {
-              method: 'PUT',
-            })
-          }}
-        />
       </div>
       <input
         type="range"

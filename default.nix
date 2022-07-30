@@ -1,7 +1,6 @@
-
 { pkgs ? import <nixpkgs> { } }:
 let
-  mynode = pkgs.nodejs-17_x;
+  mynode = pkgs.nodejs-16_x;
 in
 pkgs.stdenv.mkDerivation {
   name = "web-shell";

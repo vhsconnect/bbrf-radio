@@ -17,7 +17,9 @@ import { fav } from './models/fav.js'
 // mutable 🚔
 let server = mainServer
 
-const fastify = f({ logger: { level: 'warn' } })
+const fastify = f({
+  logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
+})
 const PORT = 3335
 const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`
 
@@ -40,8 +42,11 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
-fastify.addHook('onRequest', (req, reply, done) => {
-  req.headers = { ...req.headers, 'user-agent': 'under development; https://github.com/vhsconnect' }
+fastify.addHook('onRequest', (req, _, done) => {
+  req.headers = {
+    ...req.headers,
+    'user-agent': 'under development; https://github.com/vhsconnect',
+  }
   done()
 })
 
@@ -231,6 +236,52 @@ fastify.put('/write/add20/:uuid', (request, reply) =>
     .then(JSON.stringify)
     .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
     .then(() => console.log('wrote file succesffuly ._.'))
+    .then(() => reply.status(200).send())
+    .catch(e => console.log('>> ERROR >>', e))
+)
+
+fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(store =>
+      R.assoc(
+        'favorites',
+        R.map(
+          R.when(R.propEq('id', request.params.uuid), x => ({
+            ...x,
+            scheduled: request.params.timestamp,
+          }))
+        )(store.favorites),
+        store
+      )
+    )
+    .then(JSON.stringify)
+    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
+    .then(() => reply.status(200).send())
+    .catch(e => console.log('>> ERROR >>', e))
+)
+
+fastify.put('/write/remove-schedule/:uuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(store =>
+      R.assoc(
+        'favorites',
+        R.map(
+          R.when(R.propEq('id', request.params.uuid), x => ({
+            ...x,
+            scheduled: undefined,
+          }))
+        )(store.favorites),
+        store
+      )
+    )
+    .then(JSON.stringify)
+    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
     .then(() => reply.status(200).send())
     .catch(e => console.log('>> ERROR >>', e))
 )

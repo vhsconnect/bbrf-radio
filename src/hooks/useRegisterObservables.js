@@ -1,8 +1,16 @@
 import { useEffect } from 'react'
-import { fromEvent } from 'rxjs'
+import { fromEvent, interval } from 'rxjs'
 import { debounceTime } from 'rxjs/operators'
+import { easyDate, toUnixTimestamp } from '../utils/easyDate'
+import * as R from 'ramda'
 
-export default ({ setTag, setCountrycode, setName, setFavorites }) => {
+export default ({
+  setTag,
+  setScheduled,
+  setCountrycode,
+  setName,
+  setFavorites,
+}) => {
   useEffect(() => {
     const tagsObservable = fromEvent(document.getElementById('tags'), 'input')
     const ccObservable = fromEvent(
@@ -42,6 +50,27 @@ export default ({ setTag, setCountrycode, setName, setFavorites }) => {
       setCountrycode('')
     })
 
+    const runScheduleRoutine = interval(1000 * 60).subscribe(() => {
+      const currentEasyDate = toUnixTimestamp(new Date(easyDate()))
+      fetch('/favorites')
+        .then(data => data.json())
+        .then(
+          R.tap(
+            R.forEach(
+              R.when(
+                R.prop('scheduled'),
+                R.when(
+                  R.propEq('scheduled', currentEasyDate.toString()),
+                  R.pipe(setScheduled)
+                )
+              )
+            )
+          )
+        )
+        .then(x => setFavorites(x))
+    })
+
+
     fetch('/favorites')
       .then(data => data.json())
       .then(setFavorites)
@@ -50,6 +79,7 @@ export default ({ setTag, setCountrycode, setName, setFavorites }) => {
       s1.unsubscribe()
       s2.unsubscribe()
       s3.unsubscribe()
+      runScheduleRoutine.unsubscribe()
     }
   }, [])
 }

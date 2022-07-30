@@ -1,16 +1,43 @@
 import React from 'react'
 import Radio from './Radio'
+import * as R from 'ramda'
+import Button from './Button'
+import { toUnixTimestamp } from '../utils/easyDate'
 
-const RadioList = ({ channels, setStationController }) => {
+const RadioList = ({
+  channels,
+  setStationController,
+  targetEasyDate,
+  favorites,
+}) => {
   return (
     <div>
       {channels.map((x, y) => (
-        <Radio
-          identifier={`radio-${y}`}
-          key={`radio-${y}`}
-          info={x}
-          setStationController={setStationController}
-        />
+        <div key={`radio-${y}`} className="flex-div">
+          <Radio
+            identifier={`radio-${y}`}
+            info={x}
+            setStationController={setStationController}
+          />
+          <Button
+            title="schedule"
+            disabled={
+              !R.includes(x.stationuuid)(R.pluck('stationuuid', favorites))
+            }
+            text="⏱"
+            onClick={() => {
+              fetch(
+                '/write/schedule/' +
+                  x.stationuuid +
+                  '/' +
+                  toUnixTimestamp(new Date(targetEasyDate)),
+                {
+                  method: 'PUT',
+                }
+              )
+            }}
+          />
+        </div>
       ))}
     </div>
   )

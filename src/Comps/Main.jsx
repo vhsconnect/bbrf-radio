@@ -7,6 +7,8 @@ import Teleprompt from './Teleprompt'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
+import Schedule from './Schedule'
+import { easyDate } from '../utils/easyDate'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -15,11 +17,19 @@ export default function Main() {
   const [name, setName] = React.useState('')
   const [favorites, setFavorites] = React.useState([])
   const [stationController, setStationController] = React.useState(radioModel())
+  const [scheduled, setScheduled] = React.useState(undefined)
+  const [targetDate, setTargetDate] = React.useState(easyDate())
+
   const [radioServer, setRadioServer] = React.useState('')
   const [statusStack, setStatusStack] = React.useState('')
 
-  // observables on input fields
-  useRegisterObservables({ setTag, setCountrycode, setName, setFavorites })
+  useRegisterObservables({
+    setTag,
+    setScheduled,
+    setCountrycode,
+    setName,
+    setFavorites,
+  })
 
   React.useEffect(() => {
     const searchField = tag
@@ -51,6 +61,10 @@ export default function Main() {
     setStatusStack([`Connected to ${radioServer}`])
   }, [radioServer])
 
+  React.useEffect(() => {
+    scheduled && setStationController(stationController.next(scheduled))
+  }, [scheduled])
+
   return (
     <div>
       <div>
@@ -80,6 +94,12 @@ export default function Main() {
               .then(setChannels)
           }}
         />
+        <input
+          className="input-fields"
+          type="text"
+          value={targetDate}
+          onChange={e => setTargetDate(e.target.value)}
+        />
       </div>
       {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
       <Player
@@ -93,17 +113,20 @@ export default function Main() {
       />
       <div className="under-player">
         <RadioList
-          favorites={favorites}
           channels={channels}
           setStationController={R.pipe(
             stationController.next,
             setStationController
           )}
+          targetEasyDate={targetDate}
+          favorites={favorites}
         />
-
-        {stationController.current && (
-          <Flag countrycode={stationController.current?.countrycode} />
-        )}
+        <div className="right-panel">
+          {stationController.current && (
+            <Flag countrycode={stationController.current?.countrycode} />
+          )}
+          <Schedule favorites={favorites} />
+        </div>
       </div>
     </div>
   )
