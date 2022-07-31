@@ -7,7 +7,7 @@
   "private": false,
   "type": "module",
   "scripts": {
-    "dev": "RADIO_DEBUG=1 nodemon server/server.js & yarn run hot",
+    "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.js & yarn run hot",
     "app": "node server/server.js",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
     "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js"
