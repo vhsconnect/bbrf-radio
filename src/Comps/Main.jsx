@@ -113,6 +113,7 @@ export default function Main() {
             setStationController
           )}
           setStatusStack={setStatusStack}
+          setFavorites={setFavorites}
         />
       </div>
 
@@ -126,12 +127,13 @@ export default function Main() {
           )}
           targetEasyDate={targetDate}
           favorites={favorites}
+          setFavorites={setFavorites}
         />
         <div className="right-panel">
           {stationController.current && (
             <Flag countrycode={stationController.current?.countrycode} />
           )}
-          <Schedule favorites={favorites} />
+          <Schedule favorites={favorites} setFavorites={setFavorites}/>
         </div>
       </div>
     </div>

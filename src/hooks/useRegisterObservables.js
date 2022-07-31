@@ -67,7 +67,6 @@ export default ({
             )
           )
         )
-        .then(x => setFavorites(x))
     })
 
     fetch('/favorites')

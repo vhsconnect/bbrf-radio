@@ -12,6 +12,7 @@ const Player = ({
   favorites,
   setStatusStack,
   setLockStations,
+  setFavorites
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
@@ -89,6 +90,8 @@ const Player = ({
                 method: 'POST',
               }
             )
+              .then(data => data.json())
+              .then(setFavorites)
           }}
         />
         <Button
@@ -102,6 +105,8 @@ const Player = ({
                 method: 'POST',
               }
             )
+              .then(data => data.json())
+              .then(setFavorites)
           }}
         />
       </div>

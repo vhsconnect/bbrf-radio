@@ -10,6 +10,7 @@ const RadioList = ({
   lockStations,
   targetEasyDate,
   favorites,
+  setFavorites,
 }) => {
   return (
     <div>
@@ -37,6 +38,8 @@ const RadioList = ({
                   method: 'PUT',
                 }
               )
+                .then(data => data.json())
+                .then(setFavorites)
             }}
           />
         </div>

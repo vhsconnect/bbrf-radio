@@ -3,7 +3,7 @@ import * as R from 'ramda'
 import { toHumanReadableDate } from '../utils/easyDate'
 import Button from './Button'
 
-export default function Schedule({ favorites }) {
+export default function Schedule({ favorites, setFavorites }) {
   const timings = favorites
     .filter(R.prop('scheduled'))
     .sort((a, b) => a.scheduled - b.scheduled)
@@ -22,6 +22,8 @@ export default function Schedule({ favorites }) {
               fetch('/write/remove-schedule/' + x.stationuuid, {
                 method: 'PUT',
               })
+                .then(data => data.json())
+                .then(setFavorites)
             }
           />
         </div>
