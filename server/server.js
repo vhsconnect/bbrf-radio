@@ -23,6 +23,30 @@ const fastify = f({
 const PORT = 3335
 const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`
 
+const writeToFileSideEffect = data =>
+  fs
+    .writeFile(STORAGE_FILE, JSON.stringify(data), {
+      encoding: 'utf-8',
+    })
+    .then(() => console.log('wrote file succesffuly ._.'))
+    .catch(e => console.error('issue writing to file ' + e))
+
+const fetchFavorites = favorites =>
+  R.pipe(
+    R.pluck('id'),
+    R.join(','),
+    data => parse(endpoints.byUUIDS).expand({ uuids: data }),
+    data =>
+      got(server + '/json/' + data)
+        .json()
+        .then(
+          R.map(x => ({
+            ...x,
+            ...R.find(R.propEq('id', x.stationuuid), favorites),
+          }))
+        )
+  )(favorites)
+
 fastify.register(fastifyStatic, {
   root: R.pipe(
     fileURLToPath,
@@ -89,25 +113,11 @@ fastify.get('/favorites', (_, reply) => {
         R.ifElse(
           R.isEmpty,
           favorites => reply.status(200).send(favorites),
-          favorites =>
-            R.pipe(
-              R.pluck('id'),
-              R.join(','),
-              data => parse(endpoints.byUUIDS).expand({ uuids: data }),
-              data =>
-                got(server + '/json/' + data)
-                  .json()
-                  .then(
-                    R.map(x => ({
-                      ...x,
-                      ...R.find(R.propEq('id', x.stationuuid), favorites),
-                    }))
-                  )
-                  .then(data => reply.status(200).send(data))
-            )(favorites)
+          fetchFavorites
         )
       )
     )
+    .then(data => reply.status(200).send(data))
     .catch(e => {
       console.error('favorites', e)
       reply.status(500)
@@ -209,13 +219,33 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
         store
       )
     )
-    .then(JSON.stringify)
-    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
-    .then(() => console.log('wrote file succesffuly ._.'))
-    .then(() => reply.status(200).send())
+    .then(R.tap(writeToFileSideEffect))
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
     .catch(e => console.log('>> ERROR >>', e))
 )
 
+fastify.post('/write/removeStation/:uuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(store =>
+      R.assoc(
+        'favorites',
+        R.reject(R.propEq('id', request.params.uuid), store.favorites),
+        store
+      )
+    )
+    .then(R.tap(writeToFileSideEffect))
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
+    .catch(e => console.log('>> ERROR >>', e))
+)
+
+// currently unused
 fastify.put('/write/add20/:uuid', (request, reply) =>
   fs
     .readFile(STORAGE_FILE)
@@ -233,10 +263,10 @@ fastify.put('/write/add20/:uuid', (request, reply) =>
         store
       )
     )
-    .then(JSON.stringify)
-    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
-    .then(() => console.log('wrote file succesffuly ._.'))
-    .then(() => reply.status(200).send())
+    .then(R.tap(writeToFileSideEffect))
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
     .catch(e => console.log('>> ERROR >>', e))
 )
 
@@ -257,9 +287,10 @@ fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
         store
       )
     )
-    .then(JSON.stringify)
-    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
-    .then(() => reply.status(200).send())
+    .then(R.tap(writeToFileSideEffect))
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
     .catch(e => console.log('>> ERROR >>', e))
 )
 
@@ -280,28 +311,10 @@ fastify.put('/write/remove-schedule/:uuid', (request, reply) =>
         store
       )
     )
-    .then(JSON.stringify)
-    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
-    .then(() => reply.status(200).send())
-    .catch(e => console.log('>> ERROR >>', e))
-)
-
-fastify.post('/write/removeStation/:uuid', (request, reply) =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.toString())
-    .then(JSON.parse)
-    .then(store =>
-      R.assoc(
-        'favorites',
-        R.reject(R.propEq('id', request.params.uuid), store.favorites),
-        store
-      )
-    )
-    .then(JSON.stringify)
-    .then(data => fs.writeFile(STORAGE_FILE, data, { encoding: 'utf-8' }))
-    .then(() => console.log('wrote file succesffuly ._.'))
-    .then(() => reply.status(200).send())
+    .then(R.tap(writeToFileSideEffect))
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
     .catch(e => console.log('>> ERROR >>', e))
 )
 
