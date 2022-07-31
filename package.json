@@ -1,7 +1,7 @@
 {
   "name": "myradio",
   "version": "0.0.1",
-  "main": "index.js",
+  "main": "./server/server.js",
   "author": "vhsconnect <90valentin@gmail.com>",
   "license": "GPL-2.0-only",
   "private": false,
@@ -10,7 +10,8 @@
     "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.js & yarn run hot",
     "app": "node server/server.js",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
-    "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js"
+    "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js",
+    "defaults": "mv ./server/template.json ./server/storage.json"
   },
   "dependencies": {
     "@fastify/static": "^5.0.0",
@@ -29,7 +30,5 @@
     "nodemon": "^2.0.15",
     "prettier": "^2.5.1"
   },
-  "bin": {
-    "myradio": "./server/server.js"
-  }
+  "bin": "./server/server.js"
 }
