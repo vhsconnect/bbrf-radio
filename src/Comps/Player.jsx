@@ -4,7 +4,7 @@ import { interval } from 'rxjs'
 import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
-const MS_TO_VOLUME_RATIO = 20
+const MS_TO_VOLUME_RATIO = 30
 
 const Player = ({
   stationController,
@@ -12,7 +12,7 @@ const Player = ({
   favorites,
   setStatusStack,
   setLockStations,
-  setFavorites
+  setFavorites,
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
@@ -26,11 +26,11 @@ const Player = ({
     takeWhile(R.flip(R.gte)(0)),
     R.when(() => withDelay, delay(20000)) //delay logic
   )
-  const opposite = number => volume - number
 
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
+      if (last) current.volume = 0
       setLockStations(true)
       current.onerror = message => {
         setLockStations(false)
@@ -38,15 +38,11 @@ const Player = ({
       }
       current.onplaying = () => {
         setLockStations(false)
-        // delay logic
-        if (withDelay) {
-          current.volume = 0
-        } //set original volume while commercial is playing
         last &&
           fader.subscribe({
             next(x) {
               last.volume = x
-              current.volume = opposite(x)
+              current.volume = volume - x
               x === 0 ? last.pause() : null
             },
             complete() {
@@ -54,7 +50,6 @@ const Player = ({
             },
           })
       }
-      current.volume = volume
       current.play().catch(backtrackCurrentStation)
       setPlayerTitle([
         stationController.current.name +
