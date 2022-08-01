@@ -1,8 +1,8 @@
 {
-  "name": "myradio",
+  "name": "bbrf-radio",
   "version": "0.0.1",
   "main": "./server/server.js",
-  "author": "vhsconnect <90valentin@gmail.com>",
+  "author": "vhsconnect",
   "license": "GPL-2.0-only",
   "private": false,
   "type": "module",

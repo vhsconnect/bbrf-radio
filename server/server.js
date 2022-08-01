@@ -69,7 +69,7 @@ fastify.addHook('onRequest', (_, __, done) => {
 fastify.addHook('onRequest', (req, _, done) => {
   req.headers = {
     ...req.headers,
-    'user-agent': 'under development; https://github.com/vhsconnect',
+    'user-agent': 'vhsconnect/bbrf-radio v0.0.1',
   }
   done()
 })
