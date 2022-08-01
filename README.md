@@ -15,7 +15,7 @@ yarn run defaults
 ### Start the service
 
 ```bash
-yarn run app
+yarn run start
 ```
 then access on localhost:3335
 
@@ -23,6 +23,7 @@ then access on localhost:3335
 ### Alias the server executable globally
 
 ```bash
+yarn run build #build first
 yarn link
 ```
 

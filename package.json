@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.js & yarn run hot",
     "app": "node server/server.js",
+    "start": "yarn run build && yarn run app",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
     "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js",
     "defaults": "mv ./server/template.json ./server/storage.json"
