@@ -36,3 +36,8 @@ then call it - `bbrf-radio`
 yarn run dev
 ```
 
+
+### TODO
+
+- race timeout requests to radios
+- pagination for long radio lists
