@@ -23,6 +23,9 @@ export default function Main() {
 
   const [radioServer, setRadioServer] = React.useState('')
   const [statusStack, setStatusStack] = React.useState('')
+  const defaultMessage = `Connected to ${radioServer}`
+  const messageUser = message =>
+    setStatusStack([message].concat(defaultMessage))
 
   useRegisterObservables({
     setTag,
@@ -59,7 +62,7 @@ export default function Main() {
   }, [])
 
   React.useEffect(() => {
-    setStatusStack([`Connected to ${radioServer}`])
+    setStatusStack([defaultMessage])
   }, [radioServer])
 
   React.useEffect(() => {
@@ -112,7 +115,7 @@ export default function Main() {
             stationController.remove,
             setStationController
           )}
-          setStatusStack={setStatusStack}
+          messageUser={messageUser}
           setFavorites={setFavorites}
         />
       </div>
@@ -128,12 +131,13 @@ export default function Main() {
           targetEasyDate={targetDate}
           favorites={favorites}
           setFavorites={setFavorites}
+          setLockStations={setLockStations}
         />
         <div className="right-panel">
           {stationController.current && (
             <Flag countrycode={stationController.current?.countrycode} />
           )}
-          <Schedule favorites={favorites} setFavorites={setFavorites}/>
+          <Schedule favorites={favorites} setFavorites={setFavorites} />
         </div>
       </div>
     </div>

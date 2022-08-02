@@ -13,7 +13,7 @@ const Teleprompt = ({ textStack, ms }) => {
           map(position => ({ position, text }))
         )
       )
-      .map(($text, index) => timer(index * 2000).pipe(concatMap(() => $text)))
+      .map(($text, index) => timer(index * 5000).pipe(concatMap(() => $text)))
       .forEach($text =>
         subscriptions.push(
           $text.subscribe(({ position, text }) =>

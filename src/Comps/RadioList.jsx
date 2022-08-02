@@ -11,6 +11,7 @@ const RadioList = ({
   targetEasyDate,
   favorites,
   setFavorites,
+  setLockStations,
 }) => {
   return (
     <div>
@@ -21,6 +22,7 @@ const RadioList = ({
             identifier={`radio-${y}`}
             info={x}
             setStationController={setStationController}
+            setLockStations={setLockStations}
           />
           <Button
             title="schedule"

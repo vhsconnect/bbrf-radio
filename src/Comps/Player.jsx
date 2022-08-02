@@ -4,13 +4,13 @@ import { interval } from 'rxjs'
 import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
-const MS_TO_VOLUME_RATIO = 30
+const MS_TO_VOLUME_RATIO = 25
 
 const Player = ({
   stationController,
   backtrackCurrentStation,
   favorites,
-  setStatusStack,
+  messageUser,
   setLockStations,
   setFavorites,
 }) => {
@@ -31,10 +31,12 @@ const Player = ({
   React.useEffect(() => {
     if (stationController.up()) {
       if (last) current.volume = 0
-      setLockStations(true)
-      current.onerror = message => {
+      current.onerror = () => {
         setLockStations(false)
-        setStatusStack([message])
+        messageUser('faulty station - try this one later')
+      }
+      current.onstalled = () => {
+        setLockStations(false)
       }
       current.onplaying = () => {
         setLockStations(false)
