@@ -9,10 +9,12 @@ const radioModel = (v = []) => {
   const pub = {
     values: v,
     next(x) {
+      const stream = new Audio(x.url_resolved + '?' + slug++)
+      stream.preload = "none"
       return radioModel(
         this.values.concat({
           ...x,
-          stream: new Audio(x.url_resolved + '?' + slug++),
+          stream
         })
       )
     },
