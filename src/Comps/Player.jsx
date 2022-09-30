@@ -1,6 +1,6 @@
 import React from 'react'
 import Button from './Button'
-import { interval } from 'rxjs'
+import { fromEvent, interval } from 'rxjs'
 import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
@@ -30,34 +30,36 @@ const Player = ({
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
-      if (last) current.volume = 0
-      current.onerror = () => {
+      const fromError = fromEvent(current, 'error')
+      fromError.subscribe(() => {
         setLockStations(false)
         messageUser('faulty station - try this one later')
-      }
-      current.onstalled = () => {
-        setLockStations(false)
-      }
-      current.onplaying = () => {
-        setLockStations(false)
-        last &&
-          fader.subscribe({
-            next(x) {
-              last.volume = x
-              current.volume = volume - x
-              x === 0 ? last.pause() : null
-            },
-            complete() {
-              last.pause()
-            },
-          })
-      }
+      })
+
+      const fromPlaying = fromEvent(current, 'playing')
+      fromPlaying.subscribe({
+        next: () => {
+          setLockStations(false)
+          last &&
+            fader.subscribe({
+              next(x) {
+                last.volume = x
+                current.volume = volume - x
+                x === 0 ? last.pause() : null
+              },
+              complete() {
+                last.pause()
+              },
+            })
+
+          setPlayerTitle([
+            stationController.current.name +
+              ' @ ' +
+              stationController.current.bitrate,
+          ])
+        },
+      })
       current.play().catch(backtrackCurrentStation)
-      setPlayerTitle([
-        stationController.current.name +
-          ' @ ' +
-          stationController.current.bitrate,
-      ])
     }
   }, [stationController])
 

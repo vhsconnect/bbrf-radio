@@ -1,4 +1,6 @@
 import * as R from 'ramda'
+import {} from 'rxjs'
+subtract = R.flip(R.subtract)
 
 //solves the cached audio data problem in chromium
 //not firefox
@@ -10,11 +12,12 @@ const radioModel = (v = []) => {
     values: v,
     next(x) {
       const stream = new Audio(x.url_resolved + '?' + slug++)
-      stream.preload = "none"
+      stream.preload = 'none'
+      stream.volume = this.up() ? 0 : 1
       return radioModel(
         this.values.concat({
           ...x,
-          stream
+          stream,
         })
       )
     },
@@ -22,7 +25,12 @@ const radioModel = (v = []) => {
       return this.values.length > 1 && this.values[this.values.length - 2]
     },
     remove() {
-      return radioModel(R.take(R.length(this.values) - 1, this.values))
+      return R.pipe(
+        R.length,
+        subtract(1),
+        R.flip(R.take)(this.values),
+        radioModel
+      )(this.values)
     },
     get current() {
       return this.values[this.values.length - 1]
