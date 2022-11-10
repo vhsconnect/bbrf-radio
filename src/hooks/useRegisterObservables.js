@@ -50,6 +50,7 @@ export default ({
       setCountrycode('')
     })
 
+    // TODO clean up - remove
     const runScheduleRoutine = interval(1000 * 60).subscribe(() => {
       const currentEasyDate = toUnixTimestamp(new Date(easyDate()))
       fetch('/favorites')

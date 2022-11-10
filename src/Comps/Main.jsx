@@ -20,7 +20,7 @@ export default function Main() {
   const [scheduled, setScheduled] = React.useState(undefined)
   const [targetDate, setTargetDate] = React.useState(easyDate())
   const [lockStations, setLockStations] = React.useState(false)
-
+  const [currentOffset, setCurrentOffset] = React.useState(0)
   const [radioServer, setRadioServer] = React.useState('')
   const [statusStack, setStatusStack] = React.useState('')
   const defaultMessage = `Connected to ${radioServer}`
@@ -36,6 +36,7 @@ export default function Main() {
   })
 
   React.useEffect(() => {
+    messageUser('fetching...')
     const searchField = tag
       ? 'tag'
       : countrycode
@@ -45,14 +46,46 @@ export default function Main() {
       : undefined
     const value = tag || countrycode || name
     if (searchField) {
-      fetch(`/by${searchField}/` + value, {
+      setCurrentOffset(0)
+      fetch(`/by${searchField}/${value}?offset=0`, {
         method: 'GET',
       })
         .then(data => data.json())
         .then(setChannels)
+        .then(() => {
+          window.scrollTo({ top: true, behavior: 'smooth' })
+        })
+        .then(() => messageUser('done'))
         .catch(e => console.error(e))
     }
   }, [tag, countrycode, name])
+
+  React.useEffect(() => {
+    const searchField = tag
+      ? 'tag'
+      : countrycode
+      ? 'countrycode'
+      : name
+      ? 'name'
+      : undefined
+    const value = tag || countrycode || name
+    // don't trigger on offset reset
+    if (searchField && currentOffset) {
+      messageUser('fetching...')
+      fetch(`/by${searchField}/${value}?offset=${currentOffset}`, {
+        method: 'GET',
+      })
+        .then(data => data.json())
+        .then(
+          R.ifElse(
+            R.isEmpty,
+            () => messageUser('all radios have been fetched'),
+            R.pipe(R.concat(channels), setChannels, () => messageUser('done'))
+          )
+        )
+        .catch(e => console.error(e))
+    }
+  }, [currentOffset])
 
   React.useEffect(() => {
     fetch('/radio-server')
@@ -96,6 +129,13 @@ export default function Main() {
             onClick={() => {
               fetch('/favorites')
                 .then(data => data.json())
+                .then(
+                  R.tap(() => {
+                    setCountrycode('')
+                    setTag('')
+                    setName('')
+                  })
+                )
                 .then(setChannels)
             }}
           />
@@ -123,6 +163,10 @@ export default function Main() {
       <div className="under-player">
         <RadioList
           channels={channels}
+          isFavsList={R.pipe(
+            R.reject(R.isEmpty),
+            R.isEmpty
+          )([name, countrycode, tag])}
           lockStations={lockStations}
           setStationController={R.pipe(
             stationController.next,
@@ -132,6 +176,8 @@ export default function Main() {
           favorites={favorites}
           setFavorites={setFavorites}
           setLockStations={setLockStations}
+          setCurrentOffset={setCurrentOffset}
+          currentOffset={currentOffset}
         />
         <div className="right-panel">
           {stationController.current && (
