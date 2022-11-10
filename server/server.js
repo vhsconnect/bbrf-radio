@@ -69,7 +69,7 @@ fastify.addHook('onRequest', (_, __, done) => {
 fastify.addHook('onRequest', (req, _, done) => {
   req.headers = {
     ...req.headers,
-    'user-agent': 'vhsconnect/bbrf-radio v0.0.1',
+    'user-agent': 'vhsconnect/bbrf-radio v0.1.0',
   }
   done()
 })
@@ -140,6 +140,8 @@ fastify.get('/bytag/:tag', async (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byTagExact).expand({
       searchterm: request.params.tag,
+      offset: request.query.offset * 200,
+      limit: 200,
     })
   )
     .json()
@@ -156,6 +158,8 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
       searchterm: request.params.cc,
+      offset: request.query.offset * 200,
+      limit: 200,
     })
   )
     .json()
@@ -172,6 +176,8 @@ fastify.get('/byname/:name', (request, reply) =>
   got(
     parse(server + '/json' + endpoints.byName).expand({
       searchterm: request.params.name,
+      offset: request.query.offset * 200,
+      limit: 200,
     })
   )
     .json()

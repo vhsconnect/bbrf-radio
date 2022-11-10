@@ -1,23 +1,24 @@
 import React from 'react'
 import Button from './Button'
+import withSplashed from './withSplashed'
 
 const Radio = ({
   info,
   lockStations,
   setStationController,
   setLockStations,
-}) => {
-  const onClick = () => {
-    setStationController(info)
-    setLockStations(true)
-    fetch('/clicked/' + info.stationuuid).catch(e => console.error(e))
-  }
+}) => (
+  <div>
+    <Button
+      disabled={lockStations}
+      text={info.name}
+      onClick={() => {
+        setStationController(info)
+        setLockStations(true)
+        fetch('/clicked/' + info.stationuuid).catch(e => console.error(e))
+      }}
+    />
+  </div>
+)
 
-  return (
-    <div>
-      <Button disabled={lockStations} text={info.name} onClick={onClick} />
-    </div>
-  )
-}
-
-export default Radio
+export default withSplashed(Radio)

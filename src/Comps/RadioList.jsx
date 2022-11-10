@@ -10,8 +10,11 @@ const RadioList = ({
   lockStations,
   targetEasyDate,
   favorites,
+  isFavsList,
+  currentOffset,
   setFavorites,
   setLockStations,
+  setCurrentOffset,
 }) => {
   return (
     <div>
@@ -20,9 +23,13 @@ const RadioList = ({
           <Radio
             lockStations={lockStations}
             identifier={`radio-${y}`}
+            observerId={`radio-${y}`}
             info={x}
             setStationController={setStationController}
             setLockStations={setLockStations}
+            paginationTarget={!isFavsList && y === channels.length - 1}
+            currentOffset={currentOffset}
+            setCurrentOffset={setCurrentOffset}
           />
           <Button
             title="schedule"
