@@ -1,14 +1,14 @@
 {
   "name": "bbrf-radio",
-  "version": "0.1.0",
-  "main": "./server/server.js",
+  "version": "0.3.1",
+  "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
   "private": false,
   "type": "module",
   "scripts": {
-    "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.js & yarn run hot",
-    "app": "node server/server.js",
+    "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.mjs & yarn run hot",
+    "app": "node server/server.mjs",
     "start": "yarn run build && yarn run app",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
     "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js",

@@ -11,8 +11,8 @@ import {
   endpoints,
   mainServer,
   radioBrowserMirrors,
-} from './api/radioBrowser.js'
-import { fav } from './models/fav.js'
+} from './api/radioBrowser.mjs'
+import { fav } from './models/fav.mjs'
 
 // mutable 🚔
 let server = mainServer
@@ -69,7 +69,7 @@ fastify.addHook('onRequest', (_, __, done) => {
 fastify.addHook('onRequest', (req, _, done) => {
   req.headers = {
     ...req.headers,
-    'user-agent': 'vhsconnect/bbrf-radio v0.1.0',
+    'user-agent': 'vhsconnect/bbrf-radio v0.3.1',
   }
   done()
 })
