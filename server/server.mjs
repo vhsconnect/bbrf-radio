@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static'
 import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
+import xdg from 'xdg-portable'
 import {
   endpoints,
   mainServer,
@@ -21,7 +22,8 @@ const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
 })
 const PORT = 3335
-const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`
+const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
+const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
 
 const writeToFileSideEffect = data =>
   fs
@@ -60,9 +62,14 @@ fastify.addHook('onRequest', (_, __, done) => {
   fs.readFile(STORAGE_FILE)
     .then(() => done())
     .catch(() => {
-      fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
-        encoding: 'utf-8',
-      }).then(() => done())
+      console.log('test')
+      fs.mkdir(STORAGE_DIR)
+        .then(() =>
+          fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
+            encoding: 'utf-8',
+          })
+        )
+        .then(() => done())
     })
 })
 

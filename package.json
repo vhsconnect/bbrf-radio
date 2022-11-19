@@ -23,7 +23,8 @@
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "rxjs": "^7.5.4",
-    "uri-template": "^2.0.0"
+    "uri-template": "^2.0.0",
+    "xdg-portable": "^10.5.1"
   },
   "devDependencies": {
     "eslint": "^8.9.0",
