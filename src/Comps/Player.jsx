@@ -4,7 +4,7 @@ import { fromEvent, interval } from 'rxjs'
 import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
-const MS_TO_VOLUME_RATIO = 25
+// const MS_TO_VOLUME_RATIO = 25
 
 const Player = ({
   stationController,
@@ -13,6 +13,7 @@ const Player = ({
   messageUser,
   setLockStations,
   setFavorites,
+  msToVolumeRatio
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
@@ -21,7 +22,7 @@ const Player = ({
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
   const withDelay = last && stationController.current.with20delay
-  const fader = interval(MS_TO_VOLUME_RATIO / (volume || 1)).pipe(
+  const fader = interval(msToVolumeRatio / (volume || 1)).pipe(
     map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
     takeWhile(R.flip(R.gte)(0)),
     R.when(() => withDelay, delay(20000)) //delay logic

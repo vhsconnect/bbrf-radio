@@ -1,6 +1,6 @@
 {
   "name": "bbrf-radio",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
@@ -12,7 +12,7 @@
     "start": "yarn run build && yarn run app",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
     "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js",
-    "defaults": "mv ./server/template.json ./server/storage.json"
+    "defaults": "mv server/template.json server/storage.json"
   },
   "dependencies": {
     "@fastify/static": "^5.0.0",
