@@ -34,25 +34,27 @@ This repo exposes a nix module as part of a flake. You can import it as one of y
 ```nix
 {
   # your inputs
-  ...
-  inputs = {
-    #...
-    bbrf = "github:vhsconnect/bbrf-radio/master"
-  }
+  #...
+  inputs =
+    {
+      #...
+      bbrf = "github:vhsconnect/bbrf-radio/master";
+    };
 
   # then import it as one your modules
-  outputs = inputs:  {
+  outputs = inputs: {
     nixosConfigurations = {
-     mySystem = inputs.nixpkgs.lib.nixosSystem {
-       #...
-       modules = [
-       #...
-       inputs.bbrf.nixosModules.${builtins.currentSystem}.bbrf
-       ];
-     };
-   };
+      mySystem = inputs.nixpkgs.lib.nixosSystem {
+        #...
+        modules = [
+          #...
+          inputs.bbrf.nixosModules.${builtins.currentSystem}.bbrf
+        ];
+      };
+    };
   };
 }
+
 ```
 
 then in your configuration activate it with the settings you prefer
