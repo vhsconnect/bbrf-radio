@@ -7,12 +7,13 @@ import fastifyStatic from '@fastify/static'
 import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
+import xdg from 'xdg-portable'
 import {
   endpoints,
   mainServer,
   radioBrowserMirrors,
-} from './api/radioBrowser.js'
-import { fav } from './models/fav.js'
+} from './api/radioBrowser.mjs'
+import { fav } from './models/fav.mjs'
 
 // mutable 🚔
 let server = mainServer
@@ -20,8 +21,13 @@ let server = mainServer
 const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
 })
-const PORT = 3335
-const STORAGE_FILE = `${dirname(fileURLToPath(import.meta.url))}/storage.json`
+
+console.log({ dir: xdg.config() })
+
+const DEFAULT_PORT = 3335
+const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
+const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
+const SETTINGS_FILE = `${xdg.config()}/bbrf-radio/settings.json`
 
 const writeToFileSideEffect = data =>
   fs
@@ -60,16 +66,20 @@ fastify.addHook('onRequest', (_, __, done) => {
   fs.readFile(STORAGE_FILE)
     .then(() => done())
     .catch(() => {
-      fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
-        encoding: 'utf-8',
-      }).then(() => done())
+      fs.mkdir(STORAGE_DIR, { recursive: true })
+        .then(() =>
+          fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
+            encoding: 'utf-8',
+          })
+        )
+        .then(() => done())
     })
 })
 
 fastify.addHook('onRequest', (req, _, done) => {
   req.headers = {
     ...req.headers,
-    'user-agent': 'vhsconnect/bbrf-radio v0.1.0',
+    'user-agent': 'vhsconnect/bbrf-radio v0.4.0',
   }
   done()
 })
@@ -100,6 +110,16 @@ fastify.get('/', async (_, reply) =>
     .status(200)
     .type('text/html')
     .sendFile('./index.html')
+)
+
+fastify.get('/fader', (_, reply) =>
+  fs
+    .readFile(SETTINGS_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(R.prop('FADER_VALUE'))
+    .then(x => reply.status(200).send(x))
+    .catch(() => reply.status(202).send(25))
 )
 
 fastify.get('/favorites', (_, reply) => {
@@ -326,7 +346,16 @@ fastify.put('/write/remove-schedule/:uuid', (request, reply) =>
 
 const start = async () => {
   try {
-    await fastify.listen(PORT)
+    let Port = await fs
+      .readFile(SETTINGS_FILE)
+      .then(data => data.toString())
+      .then(JSON.parse)
+      .then(R.prop('PORT'))
+      .catch(() => {
+        console.log('no custom port specified')
+        return DEFAULT_PORT
+      })
+    await fastify.listen(Port)
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)

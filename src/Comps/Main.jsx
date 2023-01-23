@@ -22,6 +22,7 @@ export default function Main() {
   const [lockStations, setLockStations] = React.useState(false)
   const [currentOffset, setCurrentOffset] = React.useState(0)
   const [radioServer, setRadioServer] = React.useState('')
+  const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState('')
   const defaultMessage = `Connected to ${radioServer}`
   const messageUser = message =>
@@ -95,12 +96,21 @@ export default function Main() {
   }, [])
 
   React.useEffect(() => {
+    fetch('/fader')
+      .then(data => data.text())
+      .then(setFaderValue)
+
+  }, [])
+
+  React.useEffect(() => {
     setStatusStack([defaultMessage])
   }, [radioServer])
 
   React.useEffect(() => {
     scheduled && setStationController(stationController.next(scheduled))
   }, [scheduled])
+
+
 
   return (
     <div>
@@ -157,6 +167,7 @@ export default function Main() {
           )}
           messageUser={messageUser}
           setFavorites={setFavorites}
+          msToVolumeRatio={faderValue}
         />
       </div>
 
