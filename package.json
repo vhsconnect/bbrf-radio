@@ -7,13 +7,14 @@
   "private": false,
   "type": "module",
   "scripts": {
-    "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.mjs & yarn run hot",
+    "dev": "RADIO_DEBUG=1 nodemon --ignore server/storage.json server/server.mjs & npm run hot",
     "app": "node server/server.mjs",
-    "start": "yarn run build && yarn run app",
+    "start": "npm run build && npm run app",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
-    "build": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js",
+    "build": "esbuild src/Comps/App.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --minify --outfile=./index.js",
     "defaults": "mv server/template.json server/storage.json",
-    "node2nix": "node2nix -18 -i package.json -l package-lock.json"
+    "node2nix": "node2nix -18 -i package.json -l package-lock.json",
+    "build-nix-local": "nix build . --impure"
   },
   "dependencies": {
     "@fastify/static": "^5.0.0",
