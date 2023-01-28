@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 import * as fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { dirname, normalize } from 'path'
@@ -14,6 +15,7 @@ import {
   radioBrowserMirrors,
 } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
+import { userAgent } from './userAgent.js'
 
 // mutable 🚔
 let server = mainServer
@@ -22,14 +24,25 @@ const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
 })
 
-console.log({ dir: xdg.config() })
+const _got = got.extend({
+  hooks: {
+    init: [
+      (_, options) => {
+        options.headers = {
+          ...options.headers,
+          'user-agent': userAgent,
+        }
+      },
+    ],
+  },
+})
 
 const DEFAULT_PORT = 3335
 const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
 const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
 const SETTINGS_FILE = `${xdg.config()}/bbrf-radio/settings.json`
 
-const writeToFileSideEffect = data =>
+const write = data =>
   fs
     .writeFile(STORAGE_FILE, JSON.stringify(data), {
       encoding: 'utf-8',
@@ -43,7 +56,7 @@ const fetchFavorites = favorites =>
     R.join(','),
     data => parse(endpoints.byUUIDS).expand({ uuids: data }),
     data =>
-      got(server + '/json/' + data)
+      _got(server + '/json/' + data)
         .json()
         .then(
           R.map(x => ({
@@ -76,19 +89,11 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
-fastify.addHook('onRequest', (req, _, done) => {
-  req.headers = {
-    ...req.headers,
-    'user-agent': 'vhsconnect/bbrf-radio v0.4.0',
-  }
-  done()
-})
-
 fastify.addHook('onReady', done =>
   Promise.race(
     radioBrowserMirrors
       .map(x => x + '/json' + endpoints.servers)
-      .map(x => got(x).json())
+      .map(x => _got(x).json())
   )
     .then(
       R.pipe(
@@ -145,7 +150,7 @@ fastify.get('/favorites', (_, reply) => {
 })
 
 fastify.get('/stations', async (_, reply) =>
-  got(server + '/json' + endpoints.allStations)
+  _got(server + '/json' + endpoints.allStations)
     .json()
     .then(value => reply.status(200).send(value))
     .catch(e => {
@@ -157,7 +162,7 @@ fastify.get('/stations', async (_, reply) =>
 )
 
 fastify.get('/bytag/:tag', async (request, reply) =>
-  got(
+  _got(
     parse(server + '/json' + endpoints.byTagExact).expand({
       searchterm: request.params.tag,
       offset: request.query.offset * 200,
@@ -175,7 +180,7 @@ fastify.get('/bytag/:tag', async (request, reply) =>
 )
 
 fastify.get('/bycountrycode/:cc', (request, reply) =>
-  got(
+  _got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
       searchterm: request.params.cc,
       offset: request.query.offset * 200,
@@ -193,7 +198,7 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
 )
 
 fastify.get('/byname/:name', (request, reply) =>
-  got(
+  _got(
     parse(server + '/json' + endpoints.byName).expand({
       searchterm: request.params.name,
       offset: request.query.offset * 200,
@@ -211,7 +216,7 @@ fastify.get('/byname/:name', (request, reply) =>
 )
 
 fastify.get('/clicked/:uuid', async (request, reply) =>
-  got(
+  _got(
     parse(server + '/json' + endpoints.clickCounter).expand({
       stationuuid: request.params.uuid,
     })
@@ -245,7 +250,7 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
         store
       )
     )
-    .then(R.tap(writeToFileSideEffect))
+    .then(R.tap(write))
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
@@ -264,7 +269,7 @@ fastify.post('/write/removeStation/:uuid', (request, reply) =>
         store
       )
     )
-    .then(R.tap(writeToFileSideEffect))
+    .then(R.tap(write))
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
@@ -289,7 +294,7 @@ fastify.put('/write/add20/:uuid', (request, reply) =>
         store
       )
     )
-    .then(R.tap(writeToFileSideEffect))
+    .then(R.tap(write))
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
@@ -313,7 +318,7 @@ fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
         store
       )
     )
-    .then(R.tap(writeToFileSideEffect))
+    .then(R.tap(write))
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
@@ -337,7 +342,7 @@ fastify.put('/write/remove-schedule/:uuid', (request, reply) =>
         store
       )
     )
-    .then(R.tap(writeToFileSideEffect))
+    .then(R.tap(write))
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))

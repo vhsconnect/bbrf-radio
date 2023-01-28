@@ -19,7 +19,6 @@ const withSplashed = Child => props => {
     paginationTarget ? splashObserver.observe(target) : null
     return paginationTarget
       ? () => {
-          console.log('executing cleanup')
           splashObserver.unobserve(target)
         }
       : null
