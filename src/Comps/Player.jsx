@@ -4,7 +4,6 @@ import { fromEvent, interval } from 'rxjs'
 import { takeWhile, map, delay } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
-// const MS_TO_VOLUME_RATIO = 25
 
 const Player = ({
   stationController,
@@ -13,7 +12,7 @@ const Player = ({
   messageUser,
   setLockStations,
   setFavorites,
-  msToVolumeRatio
+  msToVolumeRatio,
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
