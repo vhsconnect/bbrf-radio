@@ -4,14 +4,13 @@ subtract = R.flip(R.subtract)
 //solves the cached audio data problem in chromium
 //not firefox
 //side-effect 🚓
-//let slug = 0
+let slug = 0
 
 const radioModel = (v = []) => {
   const pub = {
     values: v,
     next(x) {
-      // const stream = new Audio(x.url_resolved + '?' + slug++)
-      const stream = new Audio(x.url_resolved)
+      const stream = new Audio(x.url_resolved + '?' + slug++)
       stream.preload = 'none'
       stream.volume = this.up() ? 0 : 1
       return radioModel(
