@@ -1,7 +1,7 @@
 import React from 'react'
 import Button from './Button'
 import { fromEvent, interval } from 'rxjs'
-import { takeWhile, map, delay } from 'rxjs/operators'
+import { takeWhile, map } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
 
@@ -20,11 +20,9 @@ const Player = ({
   const last = stationController.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
-  const withDelay = last && stationController.current.with20delay
   const fader = interval(msToVolumeRatio / (volume || 1)).pipe(
     map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
-    takeWhile(R.flip(R.gte)(0)),
-    R.when(() => withDelay, delay(20000)) //delay logic
+    takeWhile(R.flip(R.gte)(0))
   )
 
   // handle change stations
@@ -71,7 +69,7 @@ const Player = ({
   return current ? (
     <div className="radio-player">
       <Button
-        text="⏯"
+        text={"⏯️ "}
         onClick={() => {
           current.paused ? current.play() : current.pause()
         }}
