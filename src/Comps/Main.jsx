@@ -151,6 +151,10 @@ export default function Main() {
           messageUser={messageUser}
           setFavorites={setFavorites}
           msToVolumeRatio={faderValue}
+          setStationController={R.pipe(
+            stationController.next,
+            setStationController
+          )}
         />
       </div>
 

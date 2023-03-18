@@ -13,6 +13,7 @@ const Player = ({
   setLockStations,
   setFavorites,
   msToVolumeRatio,
+  setStationController,
 }) => {
   const [volume, setVolume] = React.useState(1)
   const [playerTitle, setPlayerTitle] = React.useState([])
@@ -68,12 +69,22 @@ const Player = ({
 
   return current ? (
     <div className="radio-player">
-      <Button
-        text={"⏯️ "}
-        onClick={() => {
-          current.paused ? current.play() : current.pause()
-        }}
-      />
+      <div>
+        <Button
+          text={'⏮️'}
+          disabled={stationController.values.length < 2}
+          onClick={() => {
+            setLockStations(true)
+            setStationController(stationController.last)
+          }}
+        />
+        <Button
+          text={'⏯️'}
+          onClick={() => {
+            current.paused ? current.play() : current.pause()
+          }}
+        />
+      </div>
       <Teleprompt textStack={playerTitle} ms={60} />
       <div>
         <Button
