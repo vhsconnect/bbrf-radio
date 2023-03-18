@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 import { fromEvent } from 'rxjs'
 import { debounceTime } from 'rxjs/operators'
+import * as R from 'ramda'
 
-export default ({ setTag, setCountrycode, setName, setFavorites }) => {
+export default ({ setTag, setCountrycode, setName, setFavorites , setChannels}) => {
   useEffect(() => {
     const tagsObservable = fromEvent(document.getElementById('tags'), 'input')
     const ccObservable = fromEvent(
@@ -44,7 +45,8 @@ export default ({ setTag, setCountrycode, setName, setFavorites }) => {
 
     fetch('/favorites')
       .then(data => data.json())
-      .then(setFavorites)
+      .then(R.tap(setFavorites))
+      .then(setChannels)
 
     return () => {
       s1.unsubscribe()

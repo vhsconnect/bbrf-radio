@@ -29,6 +29,7 @@ export default function Main() {
     setCountrycode,
     setName,
     setFavorites,
+    setChannels,
   })
 
   React.useEffect(() => {
