@@ -1,7 +1,7 @@
 import React from 'react'
 import Button from './Button'
-import { fromEvent, interval } from 'rxjs'
-import { takeWhile, map } from 'rxjs/operators'
+import { combineLatest, fromEvent, interval } from 'rxjs'
+import { takeWhile, startWith, map } from 'rxjs/operators'
 import * as R from 'ramda'
 import Teleprompt from './Teleprompt'
 
@@ -21,14 +21,22 @@ const Player = ({
   const last = stationController.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
-  const fader = interval(msToVolumeRatio / (volume || 1)).pipe(
-    map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
-    takeWhile(R.flip(R.gte)(0))
-  )
 
   // handle change stations
   React.useEffect(() => {
     if (stationController.up()) {
+      const fromVolume = fromEvent(
+        document.getElementById('volume'),
+        'input'
+      ).pipe(
+        startWith(null),
+        map(x => x && x.target.valueAsNumber / 10)
+      )
+      const _fader = interval(msToVolumeRatio / (volume || 1)).pipe(
+        map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
+        takeWhile(R.flip(R.gte)(0))
+      )
+      const fader = combineLatest([_fader, fromVolume])
       const fromError = fromEvent(current, 'error')
       fromError.subscribe(() => {
         setLockStations(false)
@@ -41,7 +49,13 @@ const Player = ({
           setLockStations(false)
           last &&
             fader.subscribe({
-              next(x) {
+              next([x, y]) {
+                if (R.pipe(R.isNil, R.not)(y)) {
+                  current.volume = y
+                  last.volume = 0
+                  last.pause()
+                  return
+                }
                 last.volume = x
                 current.volume = volume - x
                 x === 0 ? last.pause() : null
@@ -119,6 +133,7 @@ const Player = ({
         />
       </div>
       <input
+        id="volume"
         type="range"
         min={0}
         max={10}
