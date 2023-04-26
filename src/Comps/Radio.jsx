@@ -8,7 +8,7 @@ const Radio = ({
   setStationController,
   setLockStations,
 }) => (
-  <div>
+  <div className="fade-in"> 
     <Button
       disabled={lockStations}
       text={info.name}

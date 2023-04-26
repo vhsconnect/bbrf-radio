@@ -1232,7 +1232,7 @@ let
   args = {
     name = "bbrf-radio";
     packageName = "bbrf-radio";
-    version = "0.4.2";
+    version = "0.5.0";
     src = ./.;
     dependencies = [
       sources."@fastify/ajv-compiler-1.1.0"

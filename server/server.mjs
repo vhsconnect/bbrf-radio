@@ -243,8 +243,6 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
         store.favorites.concat(
           fav({
             id: request.params.uuid,
-            with20delay: false,
-            with30delay: false,
           })
         ),
         store
@@ -276,31 +274,6 @@ fastify.post('/write/removeStation/:uuid', (request, reply) =>
     .catch(e => console.log('>> ERROR >>', e))
 )
 
-// currently unused
-fastify.put('/write/add20/:uuid', (request, reply) =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.toString())
-    .then(JSON.parse)
-    .then(store =>
-      R.assoc(
-        'favorites',
-        R.map(
-          R.when(R.propEq('id', request.params.uuid), x => ({
-            ...x,
-            with20delay: true,
-          }))
-        )(store.favorites),
-        store
-      )
-    )
-    .then(R.tap(write))
-    .then(R.prop('favorites'))
-    .then(fetchFavorites)
-    .then(data => reply.status(200).send(data))
-    .catch(e => console.log('>> ERROR >>', e))
-)
-
 fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
   fs
     .readFile(STORAGE_FILE)
@@ -313,30 +286,6 @@ fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
           R.when(R.propEq('id', request.params.uuid), x => ({
             ...x,
             scheduled: request.params.timestamp,
-          }))
-        )(store.favorites),
-        store
-      )
-    )
-    .then(R.tap(write))
-    .then(R.prop('favorites'))
-    .then(fetchFavorites)
-    .then(data => reply.status(200).send(data))
-    .catch(e => console.log('>> ERROR >>', e))
-)
-
-fastify.put('/write/remove-schedule/:uuid', (request, reply) =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.toString())
-    .then(JSON.parse)
-    .then(store =>
-      R.assoc(
-        'favorites',
-        R.map(
-          R.when(R.propEq('id', request.params.uuid), x => ({
-            ...x,
-            scheduled: undefined,
           }))
         )(store.favorites),
         store

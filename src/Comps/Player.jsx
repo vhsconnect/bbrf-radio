@@ -1,9 +1,8 @@
-import React from 'react'
-import Button from './Button'
-import { fromEvent, interval } from 'rxjs'
-import { takeWhile, map, delay } from 'rxjs/operators'
+import React, { useState, useEffect } from 'react'
 import * as R from 'ramda'
+import Button from './Button'
 import Teleprompt from './Teleprompt'
+import useStationHandler from '../hooks/useStationHandler'
 
 const Player = ({
   stationController,
@@ -13,69 +12,49 @@ const Player = ({
   setLockStations,
   setFavorites,
   msToVolumeRatio,
+  setStationController,
 }) => {
-  const [volume, setVolume] = React.useState(1)
-  const [playerTitle, setPlayerTitle] = React.useState([])
+  const [volume, setVolume] = useState(1)
+  const [playerTitle, setPlayerTitle] = useState([])
   const current = stationController.current?.stream
   const last = stationController.last?.stream
   const isFav = x =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
-  const withDelay = last && stationController.current.with20delay
-  const fader = interval(msToVolumeRatio / (volume || 1)).pipe(
-    map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
-    takeWhile(R.flip(R.gte)(0)),
-    R.when(() => withDelay, delay(20000)) //delay logic
-  )
 
-  // handle change stations
-  React.useEffect(() => {
-    if (stationController.up()) {
-      const fromError = fromEvent(current, 'error')
-      fromError.subscribe(() => {
-        setLockStations(false)
-        messageUser('faulty station - try this one later')
-      })
+  useStationHandler({
+    stationController,
+    volume,
+    msToVolumeRatio,
+    current,
+    last,
+    setLockStations,
+    messageUser,
+    setPlayerTitle,
+    backtrackCurrentStation,
+  })
 
-      const fromPlaying = fromEvent(current, 'playing')
-      fromPlaying.subscribe({
-        next: () => {
-          setLockStations(false)
-          last &&
-            fader.subscribe({
-              next(x) {
-                last.volume = x
-                current.volume = volume - x
-                x === 0 ? last.pause() : null
-              },
-              complete() {
-                last.pause()
-              },
-            })
-
-          setPlayerTitle([
-            stationController.current.name +
-              ' @ ' +
-              stationController.current.bitrate,
-          ])
-        },
-      })
-      current.play().catch(backtrackCurrentStation)
-    }
-  }, [stationController])
-
-  // handle change volume
-  React.useEffect(() => {
+  useEffect(() => {
     if (current) current.volume = volume
   }, [volume])
 
   return current ? (
     <div className="radio-player">
-      <Button
-        text="⏯"
-        onClick={() => {
-          current.paused ? current.play() : current.pause()
-        }}
-      />
+      <div>
+        <Button
+          text={'⏮️'}
+          disabled={stationController.values.length < 2}
+          onClick={() => {
+            setLockStations(true)
+            setStationController(stationController.last)
+          }}
+        />
+        <Button
+          text={'⏯️'}
+          onClick={() => {
+            current.paused ? current.play() : current.pause()
+          }}
+        />
+      </div>
       <Teleprompt textStack={playerTitle} ms={60} />
       <div>
         <Button
@@ -110,6 +89,7 @@ const Player = ({
         />
       </div>
       <input
+        id="volume"
         type="range"
         min={0}
         max={10}

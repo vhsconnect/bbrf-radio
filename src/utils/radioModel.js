@@ -1,6 +1,5 @@
 import * as R from 'ramda'
-import {} from 'rxjs'
-subtract = R.flip(R.subtract)
+const subtract = R.flip(R.subtract)
 
 //solves the cached audio data problem in chromium
 //not firefox
