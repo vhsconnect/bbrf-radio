@@ -1,6 +1,6 @@
 {
   "name": "bbrf-radio",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
