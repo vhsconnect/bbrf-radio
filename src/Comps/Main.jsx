@@ -115,7 +115,7 @@ export default function Main() {
             className="input-fields"
             type="text"
             id="countrycode"
-            placeholder="by country"
+            placeholder="by countrycode"
           />
           <input
             className="input-fields"
