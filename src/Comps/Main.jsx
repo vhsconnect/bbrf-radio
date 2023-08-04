@@ -7,6 +7,7 @@ import Teleprompt from './Teleprompt'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
+import { request } from '../utils/httpHandlers'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -19,8 +20,10 @@ export default function Main() {
   const [currentOffset, setCurrentOffset] = React.useState(0)
   const [radioServer, setRadioServer] = React.useState('')
   const [faderValue, setFaderValue] = React.useState(25)
-  const [statusStack, setStatusStack] = React.useState('')
-  const defaultMessage = `Connected to ${radioServer}`
+  const [statusStack, setStatusStack] = React.useState([])
+  const defaultMessage = radioServer
+    ? `Connected to ${radioServer}`
+    : 'radio-browser service not connected'
   const messageUser = message =>
     setStatusStack([message].concat(defaultMessage))
 
@@ -30,6 +33,7 @@ export default function Main() {
     setName,
     setFavorites,
     setChannels,
+    messageUser,
   })
 
   React.useEffect(() => {
@@ -44,7 +48,7 @@ export default function Main() {
     const value = tag || countrycode || name
     if (searchField) {
       setCurrentOffset(0)
-      fetch(`/by${searchField}/${value}?offset=0`, {
+      request(`/by${searchField}/${value}?offset=0`, {
         method: 'GET',
       })
         .then(data => data.json())
@@ -69,7 +73,7 @@ export default function Main() {
     // don't trigger on offset reset
     if (searchField && currentOffset) {
       messageUser('fetching...')
-      fetch(`/by${searchField}/${value}?offset=${currentOffset}`, {
+      request(`/by${searchField}/${value}?offset=${currentOffset}`, {
         method: 'GET',
       })
         .then(data => data.json())
@@ -85,14 +89,15 @@ export default function Main() {
   }, [currentOffset])
 
   React.useEffect(() => {
-    fetch('/radio-server')
+    request('/radio-server')
       .then(data => data.json())
       .then(R.prop('server'))
       .then(setRadioServer)
+      .catch(() => messageUser('radio-browser service appears to be down'))
   }, [])
 
   React.useEffect(() => {
-    fetch('/fader')
+    request('/fader')
       .then(data => data.text())
       .then(setFaderValue)
   }, [])
@@ -126,7 +131,7 @@ export default function Main() {
           <Button
             text="favs"
             onClick={() => {
-              fetch('/favorites')
+              request('/favorites')
                 .then(data => data.json())
                 .then(
                   R.tap(() => {
@@ -136,10 +141,11 @@ export default function Main() {
                   })
                 )
                 .then(setChannels)
+                .catch(() => messageUser("Couldn't fetch favorties"))
             }}
           />
         </div>
-        {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
+        {<Teleprompt ms={30} textStack={statusStack} />}
         <Player
           stationController={stationController}
           favorites={favorites}

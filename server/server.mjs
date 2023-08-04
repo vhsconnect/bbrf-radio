@@ -9,19 +9,16 @@ import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
 import xdg from 'xdg-portable'
-import {
-  endpoints,
-  mainServer,
-  radioBrowserMirrors,
-} from './api/radioBrowser.mjs'
+import { endpoints, radioBrowserMirrors } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
 import { userAgent } from './userAgent.js'
 
 // mutable 🚔
-let server = mainServer
+let server
 
 const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
+  requestTimeout: 4000,
 })
 
 const _got = got.extend({
@@ -109,6 +106,23 @@ fastify.addHook('onReady', done =>
     })
 )
 
+const refetchServer = () =>
+  Promise.race(
+    radioBrowserMirrors
+      .map(x => x + '/json' + endpoints.servers)
+      .map(x => _got(x).json())
+  )
+    .then(
+      R.pipe(
+        R.head,
+        R.prop('name'),
+        R.tap(x => (server = 'https://' + x))
+      )
+    )
+    .catch(e => {
+      console.error('ERROR trying to fetch server: ', e)
+    })
+
 fastify.get('/', async (_, reply) =>
   reply
     .headers({ radioBowserServer: server })
@@ -144,8 +158,10 @@ fastify.get('/favorites', (_, reply) => {
     )
     .then(data => reply.status(200).send(data))
     .catch(e => {
-      console.error('favorites', e)
-      reply.status(500)
+      refetchServer()
+      return reply
+        .status(500)
+        .send({ error: 3, message: 'favorites unsuccessful' })
     })
 })
 
@@ -158,6 +174,7 @@ fastify.get('/stations', async (_, reply) =>
         error: e,
         message: 'something went wrong',
       })
+      refetchServer()
     })
 )
 
@@ -176,6 +193,7 @@ fastify.get('/bytag/:tag', async (request, reply) =>
         error: e,
         message: 'something went wrong',
       })
+      refetchServer()
     })
 )
 
@@ -194,6 +212,7 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
         error: e,
         message: 'something went wrong',
       })
+      refetchServer()
     })
 )
 
@@ -252,7 +271,10 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
-    .catch(e => console.log('>> ERROR >>', e))
+    .catch(e => {
+      console.log('>> ERROR >>', e)
+      refetchServer()
+    })
 )
 
 fastify.post('/write/removeStation/:uuid', (request, reply) =>
@@ -271,7 +293,10 @@ fastify.post('/write/removeStation/:uuid', (request, reply) =>
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
-    .catch(e => console.log('>> ERROR >>', e))
+    .catch(e => {
+      console.log('>> ERROR >>', e)
+      refetchServer()
+    })
 )
 
 fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
