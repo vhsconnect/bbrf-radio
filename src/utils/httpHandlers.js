@@ -11,4 +11,5 @@ export const handle5xx = data => {
   return data
 }
 
-export const request = (url, options = {}) => fetch(url, {}).then(handle5xx)
+export const request = (url, options = {}) =>
+  fetch(url, options).then(handle5xx)

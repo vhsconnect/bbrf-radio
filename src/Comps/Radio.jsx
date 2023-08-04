@@ -7,9 +7,11 @@ const Radio = ({
   lockStations,
   setStationController,
   setLockStations,
+  keyboardSelection,
 }) => (
   <div className="fade-in"> 
     <Button
+      alternateColor={keyboardSelection}
       disabled={lockStations}
       text={info.name}
       onClick={() => {

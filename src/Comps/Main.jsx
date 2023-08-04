@@ -5,6 +5,7 @@ import Button from './Button'
 import Player from './Player'
 import Teleprompt from './Teleprompt'
 import useRegisterObservables from '../hooks/useRegisterObservables'
+import useFilterRadios from '../hooks/useFilterRadios'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
 import { request } from '../utils/httpHandlers'
@@ -19,6 +20,7 @@ export default function Main() {
   const [lockStations, setLockStations] = React.useState(false)
   const [currentOffset, setCurrentOffset] = React.useState(0)
   const [radioServer, setRadioServer] = React.useState('')
+  const [radioFilter, setRadioFilter] = React.useState('')
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
   const defaultMessage = radioServer
@@ -32,9 +34,13 @@ export default function Main() {
     setCountrycode,
     setName,
     setFavorites,
+    setRadioFilter,
     setChannels,
     messageUser,
+    radioFilter,
   })
+
+  useFilterRadios({ setRadioFilter, radioFilter })
 
   React.useEffect(() => {
     messageUser('fetching...')
@@ -57,7 +63,9 @@ export default function Main() {
           window.scrollTo({ top: true, behavior: 'smooth' })
         })
         .then(() => messageUser('done'))
-        .catch(e => console.error(e))
+        .catch(() =>
+          messageUser('Something went wrong! upstream might be down')
+        )
     }
   }, [tag, countrycode, name])
 
@@ -84,7 +92,7 @@ export default function Main() {
             R.pipe(R.concat(channels), setChannels, () => messageUser('done'))
           )
         )
-        .catch(e => console.error(e))
+        .catch(() => messageUser('Something went wrong! upstream might be down'))
     }
   }, [currentOffset])
 
@@ -145,7 +153,14 @@ export default function Main() {
             }}
           />
         </div>
-        {<Teleprompt ms={30} textStack={statusStack} />}
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Teleprompt ms={30} textStack={statusStack} />
+          {radioFilter && (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              filter: {radioFilter} - Escape to clear
+            </div>
+          )}
+        </div>
         <Player
           stationController={stationController}
           favorites={favorites}
@@ -179,6 +194,7 @@ export default function Main() {
           setLockStations={setLockStations}
           setCurrentOffset={setCurrentOffset}
           currentOffset={currentOffset}
+          radioFilter={radioFilter}
         />
         <div className="right-panel">
           {stationController.current && (

@@ -56,7 +56,6 @@ export default ({
       .then(R.tap(setFavorites))
       .then(setChannels)
       .catch(e => {
-        console.error(e)
         messageUser("Couldn't fetch favorites")
       })
 
