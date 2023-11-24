@@ -1,8 +1,11 @@
 # BBRF - Barebones radio with a fader
 
-_BBRF is still a work in progress_
 
 BBRF radio is a lightweight self-hosted service and frontend to interface with the open [radio-browser](https://de1.api.radio-browser.info/) api - a hosted service that serves metadata on all openly available online radios. To get started, Start up the server, or better yet host it on your network's raspberry pi or set it up as a `systemd`/`launchd` service. The app is served on port `3335` to be accessed on your browser.
+
+## Note about broken upstream.
+
+One of the query endpoints is broken upstream. this results in the favorites feature not working. As a workaround you can use this branch feature/server-refresh-with-upfix. You'll just need to remove your favorites files in `.XDG_CONFIG_HOME/bbrf-radio/storage.json`. Otherwise just hold tight until upsteam is fixed.
 
 ### Quick start
 
@@ -11,11 +14,11 @@ BBRF radio is a lightweight self-hosted service and frontend to interface with t
 - Run the development server `npm run dev`
 - Optionaly add some radio stations to your favs list `npm run defaults`
 - Default port to access the application is on localhost:3335
-- You can also alias the bbrf server for easy scripting  ```npm link```
+- You can also alias the bbrf server for easy scripting `npm link`
 - You can change the binding port, or the fader value by updating/creating your `$XDG_CONFIG_HOME/bbrf-radio/settings` file.
 
 ```json
- {"FADER_VALUE":25,"PORT":5555}
+{ "FADER_VALUE": 25, "PORT": 5555 }
 ```
 
 ### Try out the project
