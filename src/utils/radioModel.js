@@ -10,7 +10,9 @@ const radioModel = (v = []) => {
   const pub = {
     values: v,
     next(x) {
-      const stream = new Audio(x.url_resolved + '?' + slug++)
+      const stream = new Audio(
+        (x.url_resolved || decodeURIComponent(x.url)) + '?' + slug++
+      )
       stream.preload = 'none'
       stream.volume = this.up() ? 0 : 1
       return radioModel(

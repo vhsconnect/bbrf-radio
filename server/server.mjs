@@ -44,24 +44,25 @@ const write = data =>
     .writeFile(STORAGE_FILE, JSON.stringify(data), {
       encoding: 'utf-8',
     })
-    .then(() => console.log('wrote file succesffuly ._.'))
+    .then(() => data)
+    .then(R.tap(() => console.log('wrote file succesffuly ._.')))
     .catch(e => console.error('issue writing to file ' + e))
 
-const fetchFavorites = favorites =>
-  R.pipe(
-    R.pluck('id'),
-    R.join(','),
-    data => parse(endpoints.byUUIDS).expand({ uuids: data }),
-    data =>
-      _got(server + '/json/' + data)
-        .json()
-        .then(
-          R.map(x => ({
-            ...x,
-            ...R.find(R.propEq('id', x.stationuuid), favorites),
-          }))
-        )
-  )(favorites)
+const fetchFavorites = R.identity
+const fetchFavoritesLegacy = R.pipe(
+  R.pluck('id'),
+  R.join(','),
+  data => parse(endpoints.byUUIDS).expand({ uuids: data }),
+  data =>
+    _got(server + '/json/' + data)
+      .json()
+      .then(
+        R.map(x => ({
+          ...x,
+          ...R.find(R.propEq('id', x.stationuuid), favorites),
+        }))
+      )
+)
 
 fastify.register(fastifyStatic, {
   root: R.pipe(
@@ -234,10 +235,10 @@ fastify.get('/byname/:name', (request, reply) =>
     })
 )
 
-fastify.get('/clicked/:uuid', async (request, reply) =>
+fastify.get('/clicked/:stationuuid', async (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.clickCounter).expand({
-      stationuuid: request.params.uuid,
+      stationuuid: request.params.stationuuid,
     })
   )
     .then(data => reply.status(200).send(data))
@@ -251,7 +252,39 @@ fastify.get('/clicked/:uuid', async (request, reply) =>
 
 fastify.get('/radio-server', (_, reply) => reply.status(200).send({ server }))
 
-fastify.post('/write/addStation/:uuid', (request, reply) =>
+fastify.post(
+  '/write/addStation/:stationuuid/:countrycode/:url/:name/:bitrate',
+  (request, reply) =>
+    fs
+      .readFile(STORAGE_FILE)
+      .then(data => data.toString())
+      .then(JSON.parse)
+      .then(store =>
+        R.assoc(
+          'favorites',
+          store.favorites.concat(
+            fav({
+              stationuuid: request.params.stationuuid,
+              url: request.params.url,
+              name: request.params.name,
+              countrycode: request.params.countrycode,
+              bitrate: request.params.bitrate,
+            })
+          ),
+          store
+        )
+      )
+      .then(write)
+      .then(R.prop('favorites'))
+      .then(fetchFavorites)
+      .then(data => reply.status(200).send(data))
+      .catch(e => {
+        console.log('>> ERROR >>', e)
+        refetchServer()
+      })
+)
+
+fastify.post('/write/removeStation/:stationuuid', (request, reply) =>
   fs
     .readFile(STORAGE_FILE)
     .then(data => data.toString())
@@ -259,15 +292,14 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
     .then(store =>
       R.assoc(
         'favorites',
-        store.favorites.concat(
-          fav({
-            id: request.params.uuid,
-          })
+        R.reject(
+          R.propEq('stationuuid', request.params.stationuuid),
+          store.favorites
         ),
         store
       )
     )
-    .then(R.tap(write))
+    .then(write)
     .then(R.prop('favorites'))
     .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
@@ -275,52 +307,6 @@ fastify.post('/write/addStation/:uuid', (request, reply) =>
       console.log('>> ERROR >>', e)
       refetchServer()
     })
-)
-
-fastify.post('/write/removeStation/:uuid', (request, reply) =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.toString())
-    .then(JSON.parse)
-    .then(store =>
-      R.assoc(
-        'favorites',
-        R.reject(R.propEq('id', request.params.uuid), store.favorites),
-        store
-      )
-    )
-    .then(R.tap(write))
-    .then(R.prop('favorites'))
-    .then(fetchFavorites)
-    .then(data => reply.status(200).send(data))
-    .catch(e => {
-      console.log('>> ERROR >>', e)
-      refetchServer()
-    })
-)
-
-fastify.put('/write/schedule/:uuid/:timestamp', (request, reply) =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.toString())
-    .then(JSON.parse)
-    .then(store =>
-      R.assoc(
-        'favorites',
-        R.map(
-          R.when(R.propEq('id', request.params.uuid), x => ({
-            ...x,
-            scheduled: request.params.timestamp,
-          }))
-        )(store.favorites),
-        store
-      )
-    )
-    .then(R.tap(write))
-    .then(R.prop('favorites'))
-    .then(fetchFavorites)
-    .then(data => reply.status(200).send(data))
-    .catch(e => console.log('>> ERROR >>', e))
 )
 
 const start = async () => {

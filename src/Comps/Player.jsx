@@ -64,7 +64,16 @@ const Player = ({
           text="🌟"
           onClick={() => {
             request(
-              '/write/addStation/' + stationController.current.stationuuid,
+              '/write/addStation/' +
+                stationController.current.stationuuid +
+                '/' +
+                stationController.current.countrycode +
+                '/' +
+                encodeURIComponent(stationController.current.url) +
+                '/' +
+                encodeURIComponent(stationController.current.name) +
+                '/' +
+                stationController.current.bitrate || '?',
               {
                 method: 'POST',
               }

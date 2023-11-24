@@ -92,7 +92,9 @@ export default function Main() {
             R.pipe(R.concat(channels), setChannels, () => messageUser('done'))
           )
         )
-        .catch(() => messageUser('Something went wrong! upstream might be down'))
+        .catch(() =>
+          messageUser('Something went wrong! upstream might be down')
+        )
     }
   }, [currentOffset])
 
@@ -178,7 +180,6 @@ export default function Main() {
           )}
         />
       </div>
-
       <div className="under-player">
         <RadioList
           channels={channels}
