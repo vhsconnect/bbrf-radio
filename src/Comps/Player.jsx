@@ -64,16 +64,22 @@ const Player = ({
           text="🌟"
           onClick={() => {
             request(
-              '/write/addStation/' +
-                stationController.current.stationuuid +
-                '/' +
-                stationController.current.countrycode +
-                '/' +
-                encodeURIComponent(stationController.current.url) +
-                '/' +
-                encodeURIComponent(stationController.current.name) +
-                '/' +
-                stationController.current.bitrate || '?',
+              R.pipe(
+                R.map(x => x(stationController)),
+                R.join('/')
+              )([
+                R.always('/write/addStation'),
+                R.path(['current', 'stationuuid']),
+                R.either(R.path(['current', 'countrycode']), R.always('none')),
+                R.pipe(
+                  R.path(['current', 'url']),
+                  R.split('?'),
+                  R.head,
+                  encodeURIComponent
+                ),
+                R.pipe(R.path(['current', 'name']), encodeURIComponent),
+                R.either(R.path(['current', 'bitrate']), R.always(0)),
+              ]),
               {
                 method: 'POST',
               }

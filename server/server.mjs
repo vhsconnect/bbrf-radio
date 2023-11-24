@@ -38,6 +38,7 @@ const DEFAULT_PORT = 3335
 const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
 const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
 const SETTINGS_FILE = `${xdg.config()}/bbrf-radio/settings.json`
+const API_VERSION = 1
 
 const write = data =>
   fs
@@ -79,9 +80,13 @@ fastify.addHook('onRequest', (_, __, done) => {
     .catch(() => {
       fs.mkdir(STORAGE_DIR, { recursive: true })
         .then(() =>
-          fs.writeFile(STORAGE_FILE, JSON.stringify({ favorites: [] }), {
-            encoding: 'utf-8',
-          })
+          fs.writeFile(
+            STORAGE_FILE,
+            JSON.stringify({ apiVersion: API_VERSION, favorites: [] }),
+            {
+              encoding: 'utf-8',
+            }
+          )
         )
         .then(() => done())
     })
@@ -102,9 +107,20 @@ fastify.addHook('onReady', done =>
       )
     )
     .catch(e => {
-      console.error('ERROR trying to fetch server: ', e)
-      done()
+      console.error('ERROR: ', e)
+      return done()
     })
+)
+
+fastify.addHook('onReady', done =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(data => data.string())
+    .then(JSON.parse)
+    .then(R.prop('apiVersion'))
+    .then(R.ifElse(R.equals(1), () => fs.rm(STORAGE_FILE), R.T))
+    .then(() => done())
+    .catch(() => done())
 )
 
 const refetchServer = () =>
