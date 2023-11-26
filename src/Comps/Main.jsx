@@ -25,9 +25,13 @@ export default function Main() {
   const [statusStack, setStatusStack] = React.useState([])
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
-    : 'radio-browser service not connected'
+    : 'radio-browser service might be down'
   const messageUser = message =>
     setStatusStack([message].concat(defaultMessage))
+
+  const tagsInput = React.useRef(null)
+  const ccInput = React.useRef(null)
+  const nameInput = React.useRef(null)
 
   useRegisterObservables({
     setTag,
@@ -40,7 +44,13 @@ export default function Main() {
     radioFilter,
   })
 
-  useFilterRadios({ setRadioFilter, radioFilter })
+  useFilterRadios({
+    setRadioFilter,
+    radioFilter,
+    tagsInput,
+    ccInput,
+    nameInput,
+  })
 
   React.useEffect(() => {
     messageUser('fetching...')
@@ -121,18 +131,21 @@ export default function Main() {
       <div className="sticky">
         <div>
           <input
+            ref={tagsInput}
             className="input-fields"
             type="text"
             id="tags"
             placeholder="by tag"
           />
           <input
+            ref={ccInput}
             className="input-fields"
             type="text"
             id="countrycode"
             placeholder="by countrycode"
           />
           <input
+            ref={nameInput}
             className="input-fields"
             type="text"
             id="name"
@@ -157,9 +170,13 @@ export default function Main() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Teleprompt ms={30} textStack={statusStack} />
-          {radioFilter && (
+          {radioFilter ? (
             <div style={{ display: 'flex', alignItems: 'center' }}>
               filter: {radioFilter} - Escape to clear
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              type to filter - Escape to clear
             </div>
           )}
         </div>
