@@ -23,6 +23,7 @@ export default function Main() {
   const [radioFilter, setRadioFilter] = React.useState('')
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
+
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
     : 'radio-browser service might be down'

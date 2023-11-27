@@ -102,7 +102,9 @@ fastify.addHook('onReady', done =>
       R.pipe(
         R.head,
         R.prop('name'),
-        R.tap(x => (server = 'https://' + x)),
+        R.tap(x => {
+          server = 'https://' + x
+        }),
         () => done()
       )
     )
