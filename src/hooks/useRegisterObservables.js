@@ -2,8 +2,16 @@ import { useEffect } from 'react'
 import { fromEvent } from 'rxjs'
 import { debounceTime } from 'rxjs/operators'
 import * as R from 'ramda'
+import { request } from '../utils/httpHandlers'
 
-export default ({ setTag, setCountrycode, setName, setFavorites , setChannels}) => {
+export default ({
+  setTag,
+  setCountrycode,
+  setName,
+  setFavorites,
+  setChannels,
+  messageUser,
+}) => {
   useEffect(() => {
     const tagsObservable = fromEvent(document.getElementById('tags'), 'input')
     const ccObservable = fromEvent(
@@ -43,10 +51,13 @@ export default ({ setTag, setCountrycode, setName, setFavorites , setChannels}) 
       setCountrycode('')
     })
 
-    fetch('/favorites')
+    request('/favorites')
       .then(data => data.json())
       .then(R.tap(setFavorites))
       .then(setChannels)
+      .catch(e => {
+        messageUser("Couldn't fetch favorites")
+      })
 
     return () => {
       s1.unsubscribe()

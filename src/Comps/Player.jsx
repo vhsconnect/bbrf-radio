@@ -3,6 +3,7 @@ import * as R from 'ramda'
 import Button from './Button'
 import Teleprompt from './Teleprompt'
 import useStationHandler from '../hooks/useStationHandler'
+import { request } from '../utils/httpHandlers'
 
 const Player = ({
   stationController,
@@ -62,14 +63,30 @@ const Player = ({
           disabled={isFav(stationController.current)}
           text="🌟"
           onClick={() => {
-            fetch(
-              '/write/addStation/' + stationController.current.stationuuid,
+            request(
+              R.pipe(
+                R.map(x => x(stationController)),
+                R.join('/')
+              )([
+                R.always('/write/addStation'),
+                R.path(['current', 'stationuuid']),
+                R.either(R.path(['current', 'countrycode']), R.always('none')),
+                R.pipe(
+                  R.path(['current', 'url']),
+                  R.split('?'),
+                  R.head,
+                  encodeURIComponent
+                ),
+                R.pipe(R.path(['current', 'name']), encodeURIComponent),
+                R.either(R.path(['current', 'bitrate']), R.always(0)),
+              ]),
               {
                 method: 'POST',
               }
             )
               .then(data => data.json())
               .then(setFavorites)
+              .catch(() => messageUser("Couldn't add favorite"))
           }}
         />
         <Button
@@ -77,7 +94,7 @@ const Player = ({
           disabled={!isFav(stationController.current)}
           text="🚮"
           onClick={() => {
-            fetch(
+            request(
               '/write/removeStation/' + stationController.current.stationuuid,
               {
                 method: 'POST',
@@ -85,6 +102,7 @@ const Player = ({
             )
               .then(data => data.json())
               .then(setFavorites)
+              .catch(() => messageUser("Couldn't remove favorite"))
           }}
         />
       </div>

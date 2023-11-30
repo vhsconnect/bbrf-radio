@@ -5,8 +5,10 @@ import Button from './Button'
 import Player from './Player'
 import Teleprompt from './Teleprompt'
 import useRegisterObservables from '../hooks/useRegisterObservables'
+import useFilterRadios from '../hooks/useFilterRadios'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
+import { request } from '../utils/httpHandlers'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -18,18 +20,37 @@ export default function Main() {
   const [lockStations, setLockStations] = React.useState(false)
   const [currentOffset, setCurrentOffset] = React.useState(0)
   const [radioServer, setRadioServer] = React.useState('')
+  const [radioFilter, setRadioFilter] = React.useState('')
   const [faderValue, setFaderValue] = React.useState(25)
-  const [statusStack, setStatusStack] = React.useState('')
-  const defaultMessage = `Connected to ${radioServer}`
+  const [statusStack, setStatusStack] = React.useState([])
+
+  const defaultMessage = radioServer
+    ? `Connected to ${radioServer}`
+    : 'radio-browser service might be down'
   const messageUser = message =>
     setStatusStack([message].concat(defaultMessage))
+
+  const tagsInput = React.useRef(null)
+  const ccInput = React.useRef(null)
+  const nameInput = React.useRef(null)
 
   useRegisterObservables({
     setTag,
     setCountrycode,
     setName,
     setFavorites,
+    setRadioFilter,
     setChannels,
+    messageUser,
+    radioFilter,
+  })
+
+  useFilterRadios({
+    setRadioFilter,
+    radioFilter,
+    tagsInput,
+    ccInput,
+    nameInput,
   })
 
   React.useEffect(() => {
@@ -44,7 +65,7 @@ export default function Main() {
     const value = tag || countrycode || name
     if (searchField) {
       setCurrentOffset(0)
-      fetch(`/by${searchField}/${value}?offset=0`, {
+      request(`/by${searchField}/${value}?offset=0`, {
         method: 'GET',
       })
         .then(data => data.json())
@@ -53,7 +74,9 @@ export default function Main() {
           window.scrollTo({ top: true, behavior: 'smooth' })
         })
         .then(() => messageUser('done'))
-        .catch(e => console.error(e))
+        .catch(() =>
+          messageUser('Something went wrong! upstream might be down')
+        )
     }
   }, [tag, countrycode, name])
 
@@ -69,7 +92,7 @@ export default function Main() {
     // don't trigger on offset reset
     if (searchField && currentOffset) {
       messageUser('fetching...')
-      fetch(`/by${searchField}/${value}?offset=${currentOffset}`, {
+      request(`/by${searchField}/${value}?offset=${currentOffset}`, {
         method: 'GET',
       })
         .then(data => data.json())
@@ -80,19 +103,22 @@ export default function Main() {
             R.pipe(R.concat(channels), setChannels, () => messageUser('done'))
           )
         )
-        .catch(e => console.error(e))
+        .catch(() =>
+          messageUser('Something went wrong! upstream might be down')
+        )
     }
   }, [currentOffset])
 
   React.useEffect(() => {
-    fetch('/radio-server')
+    request('/radio-server')
       .then(data => data.json())
       .then(R.prop('server'))
       .then(setRadioServer)
+      .catch(() => messageUser('radio-browser service appears to be down'))
   }, [])
 
   React.useEffect(() => {
-    fetch('/fader')
+    request('/fader')
       .then(data => data.text())
       .then(setFaderValue)
   }, [])
@@ -106,18 +132,21 @@ export default function Main() {
       <div className="sticky">
         <div>
           <input
+            ref={tagsInput}
             className="input-fields"
             type="text"
             id="tags"
             placeholder="by tag"
           />
           <input
+            ref={ccInput}
             className="input-fields"
             type="text"
             id="countrycode"
             placeholder="by countrycode"
           />
           <input
+            ref={nameInput}
             className="input-fields"
             type="text"
             id="name"
@@ -126,7 +155,7 @@ export default function Main() {
           <Button
             text="favs"
             onClick={() => {
-              fetch('/favorites')
+              request('/favorites')
                 .then(data => data.json())
                 .then(
                   R.tap(() => {
@@ -136,10 +165,22 @@ export default function Main() {
                   })
                 )
                 .then(setChannels)
+                .catch(() => messageUser("Couldn't fetch favorties"))
             }}
           />
         </div>
-        {radioServer && <Teleprompt ms={30} textStack={statusStack} />}
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Teleprompt ms={30} textStack={statusStack} />
+          {radioFilter ? (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              filter: {radioFilter} - Escape to clear
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              type to filter - Escape to clear
+            </div>
+          )}
+        </div>
         <Player
           stationController={stationController}
           favorites={favorites}
@@ -157,7 +198,6 @@ export default function Main() {
           )}
         />
       </div>
-
       <div className="under-player">
         <RadioList
           channels={channels}
@@ -173,6 +213,7 @@ export default function Main() {
           setLockStations={setLockStations}
           setCurrentOffset={setCurrentOffset}
           currentOffset={currentOffset}
+          radioFilter={radioFilter}
         />
         <div className="right-panel">
           {stationController.current && (

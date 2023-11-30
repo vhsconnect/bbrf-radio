@@ -1,5 +1,7 @@
-export const fav = ({ id, with20delay, with30delay }) => ({
-  id,
-  with20delay,
-  with30delay
+export const fav = ({ stationuuid, url, name, countrycode, bitrate }) => ({
+  stationuuid,
+  url,
+  name,
+  countrycode,
+  bitrate,
 })

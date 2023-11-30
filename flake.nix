@@ -8,13 +8,15 @@
     { self
     , nixpkgs
     , utils
-    }: utils.lib.eachDefaultSystem (
+    ,
+    }:
+    utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
       in
-      rec {
-	packages.bbrf-radio = pkgs.callPackage ./package.nix { };
+      {
+        packages.bbrf-radio = pkgs.callPackage ./package.nix { };
         defaultPackage = self.packages."${system}".bbrf-radio;
         nixosModules = rec {
           bbrf = import ./module.nix self;
