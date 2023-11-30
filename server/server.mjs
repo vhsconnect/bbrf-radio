@@ -93,36 +93,52 @@ fastify.addHook('onRequest', (_, __, done) => {
 })
 
 fastify.addHook('onReady', done =>
-  Promise.race(
-    radioBrowserMirrors
-      .map(x => x + '/json' + endpoints.servers)
-      .map(x => _got(x).json())
-  )
+  Promise.allSettled([
+    Promise.race(
+      radioBrowserMirrors
+        .map(x => x + '/json' + endpoints.servers)
+        .map(x => _got(x).json())
+    ),
+    fs.readFile(STORAGE_FILE),
+  ])
+    .then(
+      R.tap(
+        R.pipe(
+          R.head,
+          R.when(
+            R.propEq('status', 'fulfilled'),
+            R.pipe(
+              R.prop('value'),
+              R.head,
+              R.prop('name'),
+              R.tap(x => {
+                server = 'https://' + x
+              })
+            )
+          )
+        )
+      )
+    )
     .then(
       R.pipe(
-        R.head,
-        R.prop('name'),
-        R.tap(x => {
-          server = 'https://' + x
-        }),
-        () => done()
+        x => x[1],
+        R.when(
+          R.propEq('status', 'fulfilled'),
+          R.pipe(
+            R.prop('value'),
+            buffer => buffer.toString(),
+            JSON.parse,
+            R.prop('apiVersion'),
+            R.ifElse(R.equals(1), R.T, () => fs.rm(STORAGE_FILE)),
+            () => done()
+          )
+        )
       )
     )
     .catch(e => {
       console.error('ERROR: ', e)
       return done()
     })
-)
-
-fastify.addHook('onReady', done =>
-  fs
-    .readFile(STORAGE_FILE)
-    .then(data => data.string())
-    .then(JSON.parse)
-    .then(R.prop('apiVersion'))
-    .then(R.ifElse(R.equals(1), () => fs.rm(STORAGE_FILE), R.T))
-    .then(() => done())
-    .catch(() => done())
 )
 
 const refetchServer = () =>
