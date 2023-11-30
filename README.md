@@ -1,11 +1,10 @@
 # BBRF - Barebones radio with a fader
 
-
 BBRF radio is a lightweight self-hosted service and frontend to interface with the open [radio-browser](https://de1.api.radio-browser.info/) api - a hosted service that serves metadata on all openly available online radios. To get started, Start up the server, or better yet host it on your network's raspberry pi or set it up as a `systemd`/`launchd` service. The app is served on port `3335` to be accessed on your browser.
 
-## Note about broken upstream.
+## Note about 0.6.0+ (breaking)
 
-One of the query endpoints is broken upstream. this results in the favorites feature not working. As a workaround you can use this branch feature/server-refresh-with-upfix. You'll just need to remove your favorites files in `.XDG_CONFIG_HOME/bbrf-radio/storage.json`. Otherwise just hold tight until upsteam is fixed.
+One of the query endpoints is broken upstream. This results in the favorites feature not working. Upgrading from 0.5.0 and prior releases will result in a backup of your old favorites and a new file with a compatible schema being created instead. You can find the backup file in `XDG_CONFIG_HOME/bbrf-radio`. You can reinstate your favorites manually if you want.
 
 ### Quick start
 

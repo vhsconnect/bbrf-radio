@@ -129,7 +129,10 @@ fastify.addHook('onReady', done =>
             buffer => buffer.toString(),
             JSON.parse,
             R.prop('apiVersion'),
-            R.ifElse(R.equals(1), R.T, () => fs.rm(STORAGE_FILE)),
+            R.ifElse(R.equals(1), R.T, () =>
+              fs.rename(STORAGE_FILE, STORAGE_FILE + '.incompat')
+            ),
+
             () => done()
           )
         )
