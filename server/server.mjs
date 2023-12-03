@@ -93,55 +93,70 @@ fastify.addHook('onRequest', (_, __, done) => {
 })
 
 fastify.addHook('onReady', done =>
-  Promise.allSettled([
-    Promise.race(
-      radioBrowserMirrors
-        .map(x => x + '/json' + endpoints.servers)
-        .map(x => _got(x).json())
-    ),
-    fs.readFile(STORAGE_FILE),
-  ])
-    .then(
-      R.tap(
-        R.pipe(
-          R.head,
-          R.when(
-            R.propEq('status', 'fulfilled'),
+  fs
+    .readFile(STORAGE_FILE)
+    .catch(() =>
+      fs.mkdir(STORAGE_DIR, { recursive: true }).then(() =>
+        fs.writeFile(
+          STORAGE_FILE,
+          JSON.stringify({ apiVersion: API_VERSION, favorites: [] }),
+          {
+            encoding: 'utf-8',
+          }
+        )
+      )
+    )
+    .then(() =>
+      Promise.allSettled([
+        Promise.race(
+          radioBrowserMirrors
+            .map(x => x + '/json' + endpoints.servers)
+            .map(x => _got(x).json())
+        ),
+        fs.readFile(STORAGE_FILE),
+      ])
+        .then(
+          R.tap(
             R.pipe(
-              R.prop('value'),
               R.head,
-              R.prop('name'),
-              R.tap(x => {
-                server = 'https://' + x
-              })
+              R.when(
+                R.propEq('status', 'fulfilled'),
+                R.pipe(
+                  R.prop('value'),
+                  R.head,
+                  R.prop('name'),
+                  R.tap(x => {
+                    server = 'https://' + x
+                  })
+                )
+              )
             )
           )
         )
-      )
-    )
-    .then(
-      R.pipe(
-        x => x[1],
-        R.when(
-          R.propEq('status', 'fulfilled'),
+        .then(
           R.pipe(
-            R.prop('value'),
-            buffer => buffer.toString(),
-            JSON.parse,
-            R.prop('apiVersion'),
-            R.ifElse(R.equals(1), R.T, () =>
-              fs.rename(STORAGE_FILE, STORAGE_FILE + '.incompat')
-            ),
+            x => x[1],
+            R.when(
+              R.propEq('status', 'fulfilled'),
+              R.pipe(
+                R.prop('value'),
+                buffer => buffer.toString(),
+                JSON.parse,
+                R.prop('apiVersion'),
+                R.ifElse(R.equals(1), R.T, () =>
+                  fs.rename(STORAGE_FILE, STORAGE_FILE + '.incompat')
+                ),
 
-            () => done()
+                () => done()
+              )
+            )
           )
         )
-      )
+        .catch(e => {
+          console.error('ERROR: ', e)
+          return done()
+        })
     )
-    .catch(e => {
-      console.error('ERROR: ', e)
-      return done()
-    })
 )
 
 const refetchServer = () =>
