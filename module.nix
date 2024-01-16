@@ -64,13 +64,13 @@ in
         ExecStart = "${pkgs.bash}/bin/bash ${bbrf-radio}/bin/bbrf-radio";
       };
       preStart = ''
-                SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
-                mkdir -p /home/${cfg.user}/.config/bbrf-radio
-                cat <<EOF > $SETTINGS_FILE
-                 ${(builtins.toJSON {PORT = cfg.port; FADER_VALUE = cfg.faderValue; ITEMS_PER_PAGE = cfg.itemsPerPage})}
-                EOF
-              '';
-            };
+        SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
+        mkdir -p /home/${cfg.user}/.config/bbrf-radio
+        cat <<EOF > $SETTINGS_FILE
+         ${(builtins.toJSON {PORT = cfg.port; FADER_VALUE = cfg.faderValue; ITEMS_PER_PAGE = cfg.itemsPerPage; })}
+        EOF
+      '';
+    };
 
-          };
-        }
+  };
+}
