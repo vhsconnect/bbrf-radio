@@ -39,6 +39,7 @@ const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
 const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
 const SETTINGS_FILE = `${xdg.config()}/bbrf-radio/settings.json`
 const API_VERSION = 1
+let PAGINGAION_LIMIT = 5000
 
 const write = data =>
   fs
@@ -92,8 +93,16 @@ fastify.addHook('onRequest', (_, __, done) => {
     })
 })
 
-fastify.addHook('onReady', done =>
-  fs
+fastify.addHook('onReady', done => {
+  fs.readFile(SETTINGS_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(R.prop('ITEMS_PER_PAGE'))
+    .then(R.when(R.gt(100000)), x => {
+      PAGINGAION_LIMIT = x
+    })
+
+  return fs
     .readFile(STORAGE_FILE)
     .catch(() =>
       fs.mkdir(STORAGE_DIR, { recursive: true }).then(() =>
@@ -157,7 +166,7 @@ fastify.addHook('onReady', done =>
           return done()
         })
     )
-)
+})
 
 const refetchServer = () =>
   Promise.race(
@@ -235,8 +244,8 @@ fastify.get('/bytag/:tag', async (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byTagExact).expand({
       searchterm: request.params.tag,
-      offset: request.query.offset * 200,
-      limit: 200,
+      offset: request.query.offset * PAGINGAION_LIMIT,
+      limit: PAGINGAION_LIMIT,
     })
   )
     .json()
@@ -254,8 +263,8 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
       searchterm: request.params.cc,
-      offset: request.query.offset * 200,
-      limit: 200,
+      offset: request.query.offset * PAGINGAION_LIMIT,
+      limit: PAGINGAION_LIMIT,
     })
   )
     .json()
@@ -273,8 +282,8 @@ fastify.get('/byname/:name', (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byName).expand({
       searchterm: request.params.name,
-      offset: request.query.offset * 200,
-      limit: 200,
+      offset: request.query.offset * PAGINGAION_LIMIT,
+      limit: PAGINGAION_LIMIT,
     })
   )
     .json()

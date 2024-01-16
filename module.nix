@@ -33,6 +33,16 @@ in
 
       };
 
+    itemsPerPage = mkOption
+      {
+        type = types.int;
+        default = 25;
+        description = ''
+          Items per page when returning results from radio list queries. Bigger limits will slow results but make it easier to filter if you're looking for a specific radio.
+        '';
+
+      };
+
     user = mkOption {
       type = types.str;
       default = null;
@@ -54,13 +64,13 @@ in
         ExecStart = "${pkgs.bash}/bin/bash ${bbrf-radio}/bin/bbrf-radio";
       };
       preStart = ''
-        SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
-        mkdir -p /home/${cfg.user}/.config/bbrf-radio
-        cat <<EOF > $SETTINGS_FILE
-         ${(builtins.toJSON {PORT = cfg.port; FADER_VALUE = cfg.faderValue;})}
-        EOF
-      '';
-    };
+                SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
+                mkdir -p /home/${cfg.user}/.config/bbrf-radio
+                cat <<EOF > $SETTINGS_FILE
+                 ${(builtins.toJSON {PORT = cfg.port; FADER_VALUE = cfg.faderValue; ITEMS_PER_PAGE = cfg.itemsPerPage})}
+                EOF
+              '';
+            };
 
-  };
-}
+          };
+        }

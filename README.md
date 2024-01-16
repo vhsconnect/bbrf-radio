@@ -17,7 +17,7 @@ One of the query endpoints is broken upstream. This results in the favorites fea
 - You can change the binding port, or the fader value by updating/creating your `$XDG_CONFIG_HOME/bbrf-radio/settings` file.
 
 ```json
-{ "FADER_VALUE": 25, "PORT": 5555 }
+{ "FADER_VALUE": 25, "PORT": 5555, "ITEM_PER_PAGE": 2000 }
 ```
 
 ### Try out the project
@@ -63,6 +63,7 @@ then in your configuration activate it with the settings you prefer
     port = 3111;
     user = "username";
     fadeValue = 40; # how fast to fade between radios
+    itemsPerPage = 2000; #Upper limit is 100000
   };
 
 }

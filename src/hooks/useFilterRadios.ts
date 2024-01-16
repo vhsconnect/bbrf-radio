@@ -1,5 +1,12 @@
 import { useEffect } from 'react'
-import { fromEvent, filter } from 'rxjs'
+import {
+  fromEvent,
+  filter,
+  Subject,
+  bufferTime,
+  debounceTime,
+  buffer,
+} from 'rxjs'
 import * as R from 'ramda'
 
 const useFilterRadios = ({
@@ -29,16 +36,24 @@ const useFilterRadios = ({
       )
     )
 
-    const docSub = viaDocument.subscribe(
-      R.ifElse(
-        R.propEq('key', 'Escape'),
-        () => setRadioFilter(''),
-        R.when(
-          R.propSatisfies(R.propEq('length', 1), 'key'),
-          R.pipe(R.prop('key'), R.concat(radioFilter), setRadioFilter)
+    const docSub = viaDocument
+      .pipe(buffer(viaDocument.pipe(debounceTime(300))))
+      .subscribe(
+        R.unless(
+          R.isEmpty,
+          R.ifElse(
+            R.pipe(R.any(R.propEq('key', 'Escape'))),
+            () => setRadioFilter(''),
+            R.pipe(
+              R.tap(console.log),
+              R.filter(R.propSatisfies(R.propEq('length', 1), 'key')),
+              R.reduce((acc, each) => acc + each.key, ''),
+              R.tap(console.log),
+              R.pipe(R.concat(radioFilter), setRadioFilter)
+            )
+          )
         )
       )
-    )
 
     return () => {
       inputSub.unsubscribe()
