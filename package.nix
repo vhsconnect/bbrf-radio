@@ -29,7 +29,6 @@ stdenv.mkDerivation rec {
       export PATH="${nodeDependencies}/bin:${nodejs}/bin:$PATH"
       ln -s ${nodeDependencies}/lib/node_modules .
       npm run build
-      npm run defaults
       runHook postBuild
     '';
 
