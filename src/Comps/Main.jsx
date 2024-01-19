@@ -9,6 +9,7 @@ import useFilterRadios from '../hooks/useFilterRadios'
 import radioModel from '../utils/radioModel'
 import Flag from './Flag'
 import { request } from '../utils/httpHandlers'
+import { userAgent } from '../../server/userAgent'
 
 export default function Main() {
   const [channels, setChannels] = React.useState([])
@@ -130,56 +131,58 @@ export default function Main() {
   return (
     <div>
       <div className="sticky">
-        <div>
-          <input
-            ref={tagsInput}
-            className="input-fields"
-            type="text"
-            id="tags"
-            placeholder="by tag"
-          />
-          <input
-            ref={ccInput}
-            className="input-fields"
-            type="text"
-            id="countrycode"
-            placeholder="by countrycode"
-          />
-          <input
-            ref={nameInput}
-            className="input-fields"
-            type="text"
-            id="name"
-            placeholder="by name"
-          />
-          <Button
-            text="favs"
-            onClick={() => {
-              request('/favorites')
-                .then(data => data.json())
-                .then(
-                  R.tap(() => {
-                    setCountrycode('')
-                    setTag('')
-                    setName('')
-                  })
-                )
-                .then(setChannels)
-                .catch(() => messageUser("Couldn't fetch favorties"))
-            }}
-          />
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div>
+            <input
+              ref={tagsInput}
+              className="input-fields"
+              type="text"
+              id="tags"
+              placeholder="by tag"
+            />
+            <input
+              ref={ccInput}
+              className="input-fields"
+              type="text"
+              id="countrycode"
+              placeholder="by countrycode"
+            />
+            <input
+              ref={nameInput}
+              className="input-fields"
+              type="text"
+              id="name"
+              placeholder="by name"
+            />
+            <Button
+              text="favs"
+              onClick={() => {
+                request('/favorites')
+                  .then(data => data.json())
+                  .then(
+                    R.tap(() => {
+                      setCountrycode('')
+                      setTag('')
+                      setName('')
+                    })
+                  )
+                  .then(setChannels)
+                  .catch(() => messageUser("Couldn't fetch favorties"))
+              }}
+            />
+          </div>
+          <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
+            {userAgent.split(' ')[1]}
+          </p>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Teleprompt ms={30} textStack={statusStack} />
-          {radioFilter ? (
+          <div className="mobile-hidden">
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              filter: {radioFilter} - Escape to clear
+              {radioFilter ? `filter: ${radioFilter} ` : 'type to filter '}-
+              Escape to clear
             </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              type to filter - Escape to clear
-            </div>
-          )}
+          </div>
         </div>
         <Player
           stationController={stationController}

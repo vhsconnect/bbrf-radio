@@ -71,12 +71,7 @@ const Player = ({
                 R.always('/write/addStation'),
                 R.path(['current', 'stationuuid']),
                 R.either(R.path(['current', 'countrycode']), R.always('none')),
-                R.pipe(
-                  R.path(['current', 'url']),
-                  R.split('?'),
-                  R.head,
-                  encodeURIComponent
-                ),
+                R.pipe(R.path(['current', 'url_resolved']), encodeURIComponent),
                 R.pipe(R.path(['current', 'name']), encodeURIComponent),
                 R.either(R.path(['current', 'bitrate']), R.always(0)),
               ]),

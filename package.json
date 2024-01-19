@@ -1,6 +1,6 @@
 {
   "name": "bbrf-radio",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
@@ -12,7 +12,6 @@
     "start": "npm run build && npm run app",
     "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
     "build": "esbuild src/Comps/App.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --minify --outfile=./index.js",
-    "defaults": "mv server/template.json server/storage.json",
     "node2nix": "node2nix -18 -i package.json -l package-lock.json",
     "build-nix-local": "nix build . --impure"
   },
