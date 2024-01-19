@@ -45,10 +45,8 @@ const useFilterRadios = ({
             R.pipe(R.any(R.propEq('key', 'Escape'))),
             () => setRadioFilter(''),
             R.pipe(
-              R.tap(console.log),
               R.filter(R.propSatisfies(R.propEq('length', 1), 'key')),
               R.reduce((acc, each) => acc + each.key, ''),
-              R.tap(console.log),
               R.pipe(R.concat(radioFilter), setRadioFilter)
             )
           )
