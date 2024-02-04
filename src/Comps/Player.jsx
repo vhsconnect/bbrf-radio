@@ -46,13 +46,17 @@ const Player = ({
           disabled={stationController.values.length < 2}
           onClick={() => {
             setLockStations(true)
+            stationController.last.stream.load()
             setStationController(stationController.last)
           }}
         />
         <Button
           text={'⏯️'}
           onClick={() => {
-            current.paused ? current.play() : current.pause()
+            if (current.paused) {
+              current.load()
+              current.play()
+            } else current.pause()
           }}
         />
       </div>
