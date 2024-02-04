@@ -381,7 +381,7 @@ const start = async () => {
         console.log('no custom port specified')
         return DEFAULT_PORT
       })
-    await fastify.listen(Port, '0.0.0.0')
+    await fastify.listen({ port: Port, host: '0.0.0.0' })
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)
