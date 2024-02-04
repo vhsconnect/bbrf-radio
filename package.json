@@ -1,6 +1,6 @@
 {
   "name": "bbrf-radio",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
@@ -32,5 +32,5 @@
     "eslint-plugin-react": "^7.28.0",
     "prettier": "^2.5.1"
   },
-  "bin": "./server/server.js"
+  "bin": "./server/server.mjs"
 }
