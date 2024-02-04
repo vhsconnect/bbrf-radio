@@ -16,9 +16,9 @@
     "build-nix-local": "nix build . --impure"
   },
   "dependencies": {
-    "@fastify/static": "^5.0.0",
+    "@fastify/static": "^7.0.0",
     "esbuild": "^0.18.8",
-    "fastify": "^3.29.0",
+    "fastify": "^4.26.0",
     "got": "^12.6.1",
     "ramda": "^0.28.0",
     "react": "^17.0.2",
