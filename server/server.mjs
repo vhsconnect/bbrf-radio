@@ -313,36 +313,38 @@ fastify.get('/clicked/:stationuuid', async (request, reply) =>
 
 fastify.get('/radio-server', (_, reply) => reply.status(200).send({ server }))
 
-fastify.post(
-  '/write/addStation/:stationuuid/:countrycode/:url/:name/:bitrate',
-  (request, reply) =>
-    fs
-      .readFile(STORAGE_FILE)
-      .then(data => data.toString())
-      .then(JSON.parse)
-      .then(store =>
-        R.assoc(
-          'favorites',
-          store.favorites.concat(
-            fav({
-              stationuuid: request.params.stationuuid,
-              url: request.params.url,
-              name: request.params.name,
-              countrycode: request.params.countrycode,
-              bitrate: request.params.bitrate,
-            })
-          ),
-          store
-        )
+fastify.post('/write/addStation/:stationuuid', (request, reply) =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(data => data.toString())
+    .then(JSON.parse)
+    .then(store =>
+      R.assoc(
+        'favorites',
+        store.favorites.concat(
+          R.pipe(
+            JSON.parse,
+            R.applySpec({
+              stationuuid: R.always(request.params.stationuuid),
+              url: R.prop('url'),
+              name: R.prop('name'),
+              countrycode: R.prop('countrycode'),
+              bitrate: R.prop('bitrate'),
+            }),
+            fav
+          )(request.body)
+        ),
+        store
       )
-      .then(write)
-      .then(R.prop('favorites'))
-      .then(fetchFavorites)
-      .then(data => reply.status(200).send(data))
-      .catch(e => {
-        console.log('>> ERROR >>', e)
-        refetchServer()
-      })
+    )
+    .then(write)
+    .then(R.prop('favorites'))
+    .then(fetchFavorites)
+    .then(data => reply.status(200).send(data))
+    .catch(e => {
+      console.log('>> ERROR >>', e)
+      refetchServer()
+    })
 )
 
 fastify.post('/write/removeStation/:stationuuid', (request, reply) =>
