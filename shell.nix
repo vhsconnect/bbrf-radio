@@ -1,10 +1,13 @@
 { pkgs ? import <nixpkgs> { } }:
 let
-  nodeLTS = pkgs.nodejs;
+  node18 = pkgs.nodejs_18;
 in
 pkgs.stdenv.mkDerivation {
   name = "web-shell";
-  packages = [ nodeLTS ];
+  packages = [ node18 ];
   shellHook = "";
-  buildInputs = [ nodeLTS pkgs.node2nix ];
+  buildInputs = [
+    node18
+    pkgs.node2nix
+  ];
 }
