@@ -46,13 +46,17 @@ const Player = ({
           disabled={stationController.values.length < 2}
           onClick={() => {
             setLockStations(true)
+            stationController.last.stream.load()
             setStationController(stationController.last)
           }}
         />
         <Button
           text={'⏯️'}
           onClick={() => {
-            current.paused ? current.play() : current.pause()
+            if (current.paused) {
+              current.load()
+              current.play()
+            } else current.pause()
           }}
         />
       </div>
@@ -70,13 +74,24 @@ const Player = ({
               )([
                 R.always('/write/addStation'),
                 R.path(['current', 'stationuuid']),
-                R.either(R.path(['current', 'countrycode']), R.always('none')),
-                R.pipe(R.path(['current', 'url_resolved']), encodeURIComponent),
-                R.pipe(R.path(['current', 'name']), encodeURIComponent),
-                R.either(R.path(['current', 'bitrate']), R.always(0)),
               ]),
               {
                 method: 'POST',
+                body: R.pipe(
+                  R.applySpec({
+                    countrycode: R.either(
+                      R.path(['current', 'countrycode']),
+                      R.always('none')
+                    ),
+                    url: R.path(['current', 'url_resolved']),
+                    name: R.path(['current', 'name']),
+                    bitrate: R.either(
+                      R.path(['current', 'bitrate']),
+                      R.always(0)
+                    ),
+                  }),
+                  JSON.stringify
+                )(stationController),
               }
             )
               .then(data => data.json())
@@ -87,7 +102,7 @@ const Player = ({
         <Button
           title="remove from favs"
           disabled={!isFav(stationController.current)}
-          text="🚮"
+          text="🗑"
           onClick={() => {
             request(
               '/write/removeStation/' + stationController.current.stationuuid,
