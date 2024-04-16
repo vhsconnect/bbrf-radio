@@ -15,6 +15,7 @@ import { userAgent } from './userAgent.js'
 
 // mutable 🚔
 let server
+let storageFile
 
 const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
@@ -50,22 +51,6 @@ const write = data =>
     .then(R.tap(() => console.log('wrote file succesffuly ._.')))
     .catch(e => console.error('issue writing to file ' + e))
 
-const fetchFavorites = R.identity
-const fetchFavoritesLegacy = R.pipe(
-  R.pluck('id'),
-  R.join(','),
-  data => parse(endpoints.byUUIDS).expand({ uuids: data }),
-  data =>
-    _got(server + '/json/' + data)
-      .json()
-      .then(
-        R.map(x => ({
-          ...x,
-          ...R.find(R.propEq('id', x.stationuuid), favorites),
-        }))
-      )
-)
-
 fastify.register(fastifyStatic, {
   root: R.pipe(
     fileURLToPath,
@@ -75,9 +60,31 @@ fastify.register(fastifyStatic, {
   )(import.meta.url),
 })
 
-fastify.addHook('onRequest', (_, __, done) => {
-  fs.readFile(STORAGE_FILE)
-    .then(() => done())
+const fetchServer = () =>
+  Promise.race(
+    radioBrowserMirrors
+      .map(x => x + '/json' + endpoints.servers)
+      .map(x => _got(x).json())
+  )
+    .then(
+      R.pipe(
+        R.head,
+        R.prop('name'),
+        R.tap(x => {
+          server = 'https://' + x
+        })
+      )
+    )
+    .catch(e => {
+      console.error('ERROR trying to fetch server: ', e)
+    })
+
+const storageIsInit = R.when(R.isNil(), () =>
+  fs
+    .readFile(STORAGE_FILE)
+    .then(() => {
+      storageFile = true
+    })
     .catch(() => {
       fs.mkdir(STORAGE_DIR, { recursive: true })
         .then(() =>
@@ -89,101 +96,32 @@ fastify.addHook('onRequest', (_, __, done) => {
             }
           )
         )
-        .then(() => done())
+        .then(() => {
+          storageFile = true
+        })
     })
+)
+
+const upstreamIsInit = R.when(R.isNil, fetchServer)
+
+fastify.addHook('onRequest', async (_, __) => {
+  await storageIsInit(storageFile)
+  await upstreamIsInit(server)
 })
 
-fastify.addHook('onReady', done => {
-  fs.readFile(SETTINGS_FILE)
+fastify.addHook('onReady', async () => {
+  await fs
+    .readFile(SETTINGS_FILE)
     .then(data => data.toString())
     .then(JSON.parse)
     .then(R.prop('ITEMS_PER_PAGE'))
     .then(R.when(R.gt(100000)), x => {
       PAGINGAION_LIMIT = x
     })
-
-  return fs
-    .readFile(STORAGE_FILE)
-    .catch(() =>
-      fs.mkdir(STORAGE_DIR, { recursive: true }).then(() =>
-        fs.writeFile(
-          STORAGE_FILE,
-          JSON.stringify({ apiVersion: API_VERSION, favorites: [] }),
-          {
-            encoding: 'utf-8',
-          }
-        )
-      )
-    )
-    .then(() =>
-      Promise.allSettled([
-        Promise.race(
-          radioBrowserMirrors
-            .map(x => x + '/json' + endpoints.servers)
-            .map(x => _got(x).json())
-        ),
-        fs.readFile(STORAGE_FILE),
-      ])
-        .then(
-          R.tap(
-            R.pipe(
-              R.head,
-              R.when(
-                R.propEq('status', 'fulfilled'),
-                R.pipe(
-                  R.prop('value'),
-                  R.head,
-                  R.prop('name'),
-                  R.tap(x => {
-                    server = 'https://' + x
-                  })
-                )
-              )
-            )
-          )
-        )
-        .then(
-          R.pipe(
-            x => x[1],
-            R.when(
-              R.propEq('status', 'fulfilled'),
-              R.pipe(
-                R.prop('value'),
-                buffer => buffer.toString(),
-                JSON.parse,
-                R.prop('apiVersion'),
-                R.ifElse(R.equals(1), R.T, () =>
-                  fs.rename(STORAGE_FILE, STORAGE_FILE + '.incompat')
-                ),
-
-                () => done()
-              )
-            )
-          )
-        )
-        .catch(e => {
-          console.error('ERROR: ', e)
-          return done()
-        })
-    )
-})
-
-const refetchServer = () =>
-  Promise.race(
-    radioBrowserMirrors
-      .map(x => x + '/json' + endpoints.servers)
-      .map(x => _got(x).json())
-  )
-    .then(
-      R.pipe(
-        R.head,
-        R.prop('name'),
-        R.tap(x => (server = 'https://' + x))
-      )
-    )
-    .catch(e => {
-      console.error('ERROR trying to fetch server: ', e)
+    .catch(() => {
+      console.log(`${SETTINGS_FILE} probably not set`)
     })
+})
 
 fastify.get('/', async (_, reply) =>
   reply
@@ -211,16 +149,12 @@ fastify.get('/favorites', (_, reply) => {
     .then(
       R.pipe(
         R.prop('favorites'),
-        R.ifElse(
-          R.isEmpty,
-          favorites => reply.status(200).send(favorites),
-          fetchFavorites
-        )
+        R.when(R.isEmpty, favorites => reply.status(200).send(favorites))
       )
     )
     .then(data => reply.status(200).send(data))
-    .catch(e => {
-      refetchServer()
+    .catch(() => {
+      fetchServer()
       return reply
         .status(500)
         .send({ error: 3, message: 'favorites unsuccessful' })
@@ -236,7 +170,7 @@ fastify.get('/stations', async (_, reply) =>
         error: e,
         message: 'something went wrong',
       })
-      refetchServer()
+      fetchServer()
     })
 )
 
@@ -255,7 +189,7 @@ fastify.get('/bytag/:tag', async (request, reply) =>
         error: e,
         message: 'something went wrong',
       })
-      refetchServer()
+      fetchServer()
     })
 )
 
@@ -274,7 +208,7 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
         error: e,
         message: 'something went wrong',
       })
-      refetchServer()
+      fetchServer()
     })
 )
 
@@ -339,11 +273,10 @@ fastify.post('/write/addStation/:stationuuid', (request, reply) =>
     )
     .then(write)
     .then(R.prop('favorites'))
-    .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
     .catch(e => {
       console.log('>> ERROR >>', e)
-      refetchServer()
+      fetchServer()
     })
 )
 
@@ -364,11 +297,10 @@ fastify.post('/write/removeStation/:stationuuid', (request, reply) =>
     )
     .then(write)
     .then(R.prop('favorites'))
-    .then(fetchFavorites)
     .then(data => reply.status(200).send(data))
     .catch(e => {
       console.log('>> ERROR >>', e)
-      refetchServer()
+      fetchServer()
     })
 )
 
