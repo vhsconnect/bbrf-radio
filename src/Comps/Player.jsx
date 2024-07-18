@@ -3,6 +3,7 @@ import * as R from 'ramda'
 import Button from './Button'
 import Teleprompt from './Teleprompt'
 import useStationHandler from '../hooks/useStationHandler'
+import useQueryTrackInfo from '../hooks/useQueryTrackInfo'
 import { request } from '../utils/httpHandlers'
 
 const Player = ({
@@ -10,10 +11,12 @@ const Player = ({
   backtrackCurrentStation,
   favorites,
   messageUser,
+  defaultMessage,
   setLockStations,
   setFavorites,
-  msToVolumeRatio,
+  setStatusStack,
   setStationController,
+  msToVolumeRatio,
 }) => {
   const [volume, setVolume] = useState(1)
   const [playerTitle, setPlayerTitle] = useState([])
@@ -37,6 +40,13 @@ const Player = ({
   useEffect(() => {
     if (current) current.volume = volume
   }, [volume])
+
+  useQueryTrackInfo({
+    stationController,
+    current,
+    setStatusStack,
+    defaultMessage,
+  })
 
   return current ? (
     <div className="radio-player">

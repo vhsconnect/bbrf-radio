@@ -28,8 +28,11 @@ export default function Main() {
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
     : 'radio-browser service might be down'
+
+  const getDefaultMessage = () => defaultMessage
+
   const messageUser = message =>
-    setStatusStack([message].concat(defaultMessage))
+    setStatusStack([message].concat(getDefaultMessage()))
 
   const tagsInput = React.useRef(null)
   const ccInput = React.useRef(null)
@@ -59,10 +62,10 @@ export default function Main() {
     const searchField = tag
       ? 'tag'
       : countrycode
-      ? 'countrycode'
-      : name
-      ? 'name'
-      : undefined
+        ? 'countrycode'
+        : name
+          ? 'name'
+          : undefined
     const value = tag || countrycode || name
     if (searchField) {
       setCurrentOffset(0)
@@ -85,10 +88,10 @@ export default function Main() {
     const searchField = tag
       ? 'tag'
       : countrycode
-      ? 'countrycode'
-      : name
-      ? 'name'
-      : undefined
+        ? 'countrycode'
+        : name
+          ? 'name'
+          : undefined
     const value = tag || countrycode || name
     // don't trigger on offset reset
     if (searchField && currentOffset) {
@@ -187,18 +190,20 @@ export default function Main() {
         <Player
           stationController={stationController}
           favorites={favorites}
-          setLockStations={setLockStations}
           backtrackCurrentStation={R.pipe(
             stationController.remove,
             setStationController
           )}
+          defaultMessage={defaultMessage}
           messageUser={messageUser}
           setFavorites={setFavorites}
-          msToVolumeRatio={faderValue}
+          setStatusStack={setStatusStack}
+          setLockStations={setLockStations}
           setStationController={R.pipe(
             stationController.next,
             setStationController
           )}
+          msToVolumeRatio={faderValue}
         />
       </div>
       <div className="under-player">
