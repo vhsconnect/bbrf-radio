@@ -1574,7 +1574,7 @@ let
   args = {
     name = "bbrf-radio";
     packageName = "bbrf-radio";
-    version = "0.7.4";
+    version = "0.8.0";
     src = ./.;
     dependencies = [
       sources."@esbuild/android-arm-0.18.8"
