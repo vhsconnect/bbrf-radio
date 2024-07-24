@@ -12,6 +12,7 @@ const radioModel = (v = []) => {
           '?' +
           cacheBust.toFixed(2)
       )
+
       stream.preload = 'none'
       stream.load()
       stream.volume = this.up() ? 0 : 1

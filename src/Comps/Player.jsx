@@ -17,6 +17,7 @@ const Player = ({
   setStatusStack,
   setStationController,
   msToVolumeRatio,
+    removeFromFavorites
 }) => {
   const [volume, setVolume] = useState(1)
   const [playerTitle, setPlayerTitle] = useState([])
@@ -113,17 +114,8 @@ const Player = ({
           title="remove from favs"
           disabled={!isFav(stationController.current)}
           text="🗑"
-          onClick={() => {
-            request(
-              '/write/removeStation/' + stationController.current.stationuuid,
-              {
-                method: 'POST',
-              }
-            )
-              .then(data => data.json())
-              .then(setFavorites)
-              .catch(() => messageUser("Couldn't remove favorite"))
-          }}
+          onClick={() => removeFromFavorites(stationController.current.stationuuid)
+          }
         />
       </div>
       <input

@@ -8,7 +8,9 @@ export default ({
   defaultMessage,
 }) => {
   useEffect(() => {
-    const interval = setInterval(() => {
+    let timeoutTime = 10 * 1000
+
+    const f = () => {
       if (stationController.current) {
         const url = stationController.current.url
 
@@ -61,10 +63,16 @@ export default ({
           .then(x => {
             setStatusStack([`${x.artist ? x.artist + ': ' : ''}${x.title}`])
           })
+          .catch(() => {
+            timeoutTime = timeoutTime * 4
+          })
       }
-    }, 10 * 1000)
+      // set  as Interval
+      timeout = setTimeout(f, timeoutTime)
+    }
+    let timeout = setTimeout(f, timeoutTime)
     return () => {
-      clearInterval(interval)
+      clearTimeout(timeout)
       setStatusStack([defaultMessage])
     }
   }, [current, defaultMessage])

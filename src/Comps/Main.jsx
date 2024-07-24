@@ -4,10 +4,11 @@ import RadioList from './RadioList'
 import Button from './Button'
 import Player from './Player'
 import Teleprompt from './Teleprompt'
+import DeleteFaultyStation from './DeleteFaultyStation'
+import Flag from './Flag'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
 import radioModel from '../utils/radioModel'
-import Flag from './Flag'
 import { request } from '../utils/httpHandlers'
 import { userAgent } from '../../server/userAgent'
 
@@ -24,6 +25,7 @@ export default function Main() {
   const [radioFilter, setRadioFilter] = React.useState('')
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
+  const [deleteCandidate, setDeleteCandidate] = React.useState(null)
 
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
@@ -131,6 +133,15 @@ export default function Main() {
     setStatusStack([defaultMessage])
   }, [radioServer])
 
+  const removeFromFavorites = uuid => {
+    request('/write/removeStation/' + uuid, {
+      method: 'POST',
+    })
+      .then(data => data.json())
+      .then(setFavorites)
+      .catch(() => messageUser("Couldn't remove favorite"))
+  }
+
   return (
     <div>
       <div className="sticky">
@@ -179,7 +190,17 @@ export default function Main() {
           </p>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Teleprompt ms={30} textStack={statusStack} />
+          <span>
+            <Teleprompt ms={30} textStack={statusStack} />
+            {deleteCandidate && (
+              <DeleteFaultyStation
+                deleteCandidate={deleteCandidate}
+                setDeleteCandidate={setDeleteCandidate}
+                removeFromFavorites={removeFromFavorites}
+              />
+            )}
+          </span>
+
           <div className="mobile-hidden">
             <div style={{ display: 'flex', alignItems: 'center' }}>
               {radioFilter ? `filter: ${radioFilter} ` : 'type to filter '}-
@@ -189,8 +210,10 @@ export default function Main() {
         </div>
         <Player
           stationController={stationController}
+          removeFromFavorites={removeFromFavorites}
           favorites={favorites}
           backtrackCurrentStation={R.pipe(
+            R.pipe(R.prop('values'), R.last, setDeleteCandidate),
             stationController.remove,
             setStationController
           )}
