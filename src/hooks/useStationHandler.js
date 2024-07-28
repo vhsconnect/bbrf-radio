@@ -34,7 +34,7 @@ const useStationHandler = ({
       const fromError = fromEvent(current, 'error')
       const errorSub = fromError.subscribe(() => {
         setLockStations(false)
-        messageUser('faulty station - try this one later')
+        messageUser('faulty station, aborting...')
       })
 
       const fromPlaying = fromEvent(current, 'playing')
@@ -44,6 +44,8 @@ const useStationHandler = ({
       const loadingSub = fromLoading.subscribe({
         next: () => {
           timeout = setTimeout(() => {
+            messageUser('Timed out, aborting...')
+            stationController.current.stream.pause()
             backtrackCurrentStation(stationController)
             setLockStations(false)
             playingSub.unsubscribe()

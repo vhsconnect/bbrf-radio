@@ -26,6 +26,7 @@ export default function Main() {
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
   const [deleteCandidate, setDeleteCandidate] = React.useState(null)
+  const [trackInfo, setTrackInfo] = React.useState(null)
 
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
@@ -191,14 +192,18 @@ export default function Main() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>
-            <Teleprompt ms={30} textStack={statusStack} />
-            {deleteCandidate && (
-              <DeleteFaultyStation
-                deleteCandidate={deleteCandidate}
-                setDeleteCandidate={setDeleteCandidate}
-                removeFromFavorites={removeFromFavorites}
-              />
-            )}
+            <Teleprompt ms={30} textStack={statusStack} trackInfo={trackInfo} />
+            {deleteCandidate &&
+              R.pipe(
+                R.map(R.prop('stationuuid')),
+                R.includes(deleteCandidate.stationuuid)
+              )(favorites) && (
+                <DeleteFaultyStation
+                  deleteCandidate={deleteCandidate}
+                  setDeleteCandidate={setDeleteCandidate}
+                  removeFromFavorites={removeFromFavorites}
+                />
+              )}
           </span>
 
           <div className="mobile-hidden">
@@ -220,8 +225,8 @@ export default function Main() {
           defaultMessage={defaultMessage}
           messageUser={messageUser}
           setFavorites={setFavorites}
-          setStatusStack={setStatusStack}
           setLockStations={setLockStations}
+          setTrackInfo={setTrackInfo}
           setStationController={R.pipe(
             stationController.next,
             setStationController

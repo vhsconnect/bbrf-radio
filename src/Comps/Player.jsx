@@ -14,10 +14,10 @@ const Player = ({
   defaultMessage,
   setLockStations,
   setFavorites,
-  setStatusStack,
+  setTrackInfo,
   setStationController,
   msToVolumeRatio,
-    removeFromFavorites
+  removeFromFavorites,
 }) => {
   const [volume, setVolume] = useState(1)
   const [playerTitle, setPlayerTitle] = useState([])
@@ -45,8 +45,8 @@ const Player = ({
   useQueryTrackInfo({
     stationController,
     current,
-    setStatusStack,
     defaultMessage,
+    setTrackInfo,
   })
 
   return current ? (
@@ -114,7 +114,8 @@ const Player = ({
           title="remove from favs"
           disabled={!isFav(stationController.current)}
           text="🗑"
-          onClick={() => removeFromFavorites(stationController.current.stationuuid)
+          onClick={() =>
+            removeFromFavorites(stationController.current.stationuuid)
           }
         />
       </div>

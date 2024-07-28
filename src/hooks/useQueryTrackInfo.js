@@ -4,8 +4,8 @@ import * as R from 'ramda'
 export default ({
   stationController,
   current,
-  setStatusStack,
   defaultMessage,
+  setTrackInfo,
 }) => {
   useEffect(() => {
     let timeoutTime = 10 * 1000
@@ -60,11 +60,18 @@ export default ({
               )
             )
           )
-          .then(x => {
-            setStatusStack([`${x.artist ? x.artist + ': ' : ''}${x.title}`])
-          })
+          .then(
+            R.when(
+              R.either(R.prop('title'), R.prop('artists')),
+              R.pipe(
+                x => `${x.artist ? x.artist + ': ' : ''}${x.title}`,
+                setTrackInfo
+              )
+            )
+          )
           .catch(() => {
             timeoutTime = timeoutTime * 4
+            setTrackInfo(null)
           })
       }
       // set  as Interval
@@ -73,7 +80,7 @@ export default ({
     let timeout = setTimeout(f, timeoutTime)
     return () => {
       clearTimeout(timeout)
-      setStatusStack([defaultMessage])
+      setTrackInfo(null)
     }
   }, [current, defaultMessage])
 }
