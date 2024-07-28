@@ -7,7 +7,7 @@
 
 stdenv.mkDerivation {
   pname = "bbrf-radio";
-  version = "0.8.0";
+  version = "0.8.1";
   src = builtins.path { path = ./.; name = "bbrf-radio"; };
 
   nativeBuildInputs = [
