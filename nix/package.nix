@@ -1,27 +1,28 @@
-{ lib
-, stdenv
-, pkgs
-, nodejs
-, runtimeShell
+{
+  lib,
+  stdenv,
+  pkgs,
+  nodejs,
+  runtimeShell,
 }:
 
 stdenv.mkDerivation {
   pname = "bbrf-radio";
   version = "0.8.1";
-  src = builtins.path { path = ./.; name = "bbrf-radio"; };
+  src = builtins.path {
+    path = ../.;
+    name = "bbrf-radio";
+  };
 
-  nativeBuildInputs = [
-    nodejs
-  ];
+  nativeBuildInputs = [ nodejs ];
 
   buildPhase =
     let
-      nodeDependencies = (import ./default.nix {
-        inherit pkgs nodejs;
-        inherit (stdenv.hostPlatform) system;
-      }).nodeDependencies.override (_: {
-        dontNpmInstall = true;
-      });
+      nodeDependencies =
+        (import ./default.nix {
+          inherit pkgs nodejs;
+          inherit (stdenv.hostPlatform) system;
+        }).nodeDependencies;
     in
     ''
       runHook preBuild
