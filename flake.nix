@@ -21,7 +21,7 @@
         packages.bbrf-radio = callPackage ./nix/package.nix { };
         defaultPackage = self.packages."${system}".bbrf-radio;
         nixosModules = rec {
-          bbrf = import ./nix/module.nix self;
+          bbrf = import ./nix/module.nix self system;
           default = bbrf;
         };
         devShells.default = mkShell {
