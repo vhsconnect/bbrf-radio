@@ -67,7 +67,7 @@ in
           cat <<EOF > $SETTINGS_FILE
           ${json}
           EOF
-          exec ${pkgs.bash}/bin/bash ${bbrf-radio}/bin/bbrf-radio
+          exec ${bbrf-radio}/bin/bbrf-radio
 
         '';
         serviceConfig = {
@@ -86,7 +86,7 @@ in
         serviceConfig = {
           Type = "simple";
           User = cfg.user;
-          ExecStart = "${pkgs.bash}/bin/bash ${bbrf-radio}/bin/bbrf-radio";
+          ExecStart = "${bbrf-radio}/bin/bbrf-radio";
         };
         preStart = ''
           SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
