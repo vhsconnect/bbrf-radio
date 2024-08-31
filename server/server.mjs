@@ -61,7 +61,7 @@ fastify.register(fastifyStatic, {
 })
 
 const fetchServer = () =>
-  Promise.race(
+  Promise.any(
     radioBrowserMirrors
       .map(x => x + '/json' + endpoints.servers)
       .map(x => _got(x).json())
