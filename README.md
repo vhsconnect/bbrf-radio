@@ -26,7 +26,7 @@ One of the query endpoints is broken upstream. This results in the favorites fea
 
 ### Usage with nixos
 
-This repo exposes a nix module as part of a flake. You can import it as one of your inputs if you use flakes to configure your system (NixOs or Mac). Otherwise you can just use the package exported as a standalone script that you can invoke in your own systemd module or however else.
+This repo exposes a nix module as part of a flake. You can import it as one of your inputs if you use flakes to configure your system (systemd module on NixOs or launchd module on Mac). Otherwise you can just use the package exported as a standalone script that you can invoke in your own systemd module or however else.
 
 ```nix
 {
