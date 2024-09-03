@@ -40,7 +40,7 @@ const STORAGE_DIR = `${xdg.config()}/bbrf-radio/`
 const STORAGE_FILE = `${xdg.config()}/bbrf-radio/storage.json`
 const SETTINGS_FILE = `${xdg.config()}/bbrf-radio/settings.json`
 const API_VERSION = 1
-let PAGINGAION_LIMIT = 5000
+let PAGINATION_LIMIT = 5000
 
 const write = data =>
   fs
@@ -111,15 +111,18 @@ fastify.addHook('onRequest', async (_, __) => {
 
 fastify.addHook('onReady', async () => {
   await fs
-    .readFile(SETTINGS_FILE)
+    .readFile(SETTINGS_FILE, (err, data) => {
+        if (err) throw err;
+        return data
+    })
     .then(data => data.toString())
     .then(JSON.parse)
     .then(R.prop('ITEMS_PER_PAGE'))
-    .then(R.when(R.gt(100000)), x => {
-      PAGINGAION_LIMIT = x
-    })
-    .catch(() => {
-      console.log(`${SETTINGS_FILE} probably not set`)
+    .then(R.when(R.either(R.gt(100000), R.lt(500)), x => {
+      PAGINATION_LIMIT = x
+    }))
+    .catch((e) => {
+      console.log(`reading ${SETTINGS_FILE} failed: ${e}`)
     })
 })
 
@@ -178,8 +181,8 @@ fastify.get('/bytag/:tag', async (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byTagExact).expand({
       searchterm: request.params.tag,
-      offset: request.query.offset * PAGINGAION_LIMIT,
-      limit: PAGINGAION_LIMIT,
+      offset: request.query.offset * PAGINATION_LIMIT,
+      limit: PAGINATION_LIMIT,
     })
   )
     .json()
@@ -197,8 +200,8 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byCountrycodeExact).expand({
       searchterm: request.params.cc,
-      offset: request.query.offset * PAGINGAION_LIMIT,
-      limit: PAGINGAION_LIMIT,
+      offset: request.query.offset * PAGINATION_LIMIT,
+      limit: PAGINATION_LIMIT,
     })
   )
     .json()
@@ -216,8 +219,8 @@ fastify.get('/byname/:name', (request, reply) =>
   _got(
     parse(server + '/json' + endpoints.byName).expand({
       searchterm: request.params.name,
-      offset: request.query.offset * PAGINGAION_LIMIT,
-      limit: PAGINGAION_LIMIT,
+      offset: request.query.offset * PAGINATION_LIMIT,
+      limit: PAGINATION_LIMIT,
     })
   )
     .json()
