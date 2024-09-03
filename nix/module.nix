@@ -43,7 +43,7 @@ in
 
     itemsPerPage = mkOption {
       type = types.int;
-      default = 25;
+      default = 5000;
       description = ''
         Items per page when returning results from radio list queries. Bigger limits will slow results but make it easier to filter if you're looking for a specific radio.
       '';
@@ -60,7 +60,8 @@ in
 
   config = mkIf cfg.enable (mkMerge [
     (optionalAttrs (isDarwin system) {
-      launchd.daemons.bbrf = {
+
+      launchd.user.agents.bbrf = {
         script = ''
           SETTINGS_FILE=/Users/${cfg.user}/Library/Preferences/bbrf-radio/settings.json
           mkdir -p /Users/${cfg.user}/Library/Preferences/bbrf-radio
@@ -73,10 +74,11 @@ in
         serviceConfig = {
           KeepAlive = true;
           RunAtLoad = true;
-          StandardOutPath = "/var/log/bbrf.out.log";
-          StandardErrorPath = "/var/log/bbrf.err.log";
+          StandardOutPath = "/Users/${cfg.user}/Library/Logs/bbrf.out.log";
+          StandardErrorPath = "/Users/${cfg.user}/Library/Logs/bbrf.err.log";
         };
       };
+
     })
     (optionalAttrs (!(isDarwin system)) {
       systemd.services.bbrf = {
