@@ -3,6 +3,8 @@ import { combineLatest, fromEvent, interval } from 'rxjs'
 import { takeWhile, startWith, map } from 'rxjs/operators'
 import * as R from 'ramda'
 
+const ABORT_RADIO_INTERVAL = 5000
+
 const useStationHandler = ({
   stationController,
   volume,
@@ -16,6 +18,7 @@ const useStationHandler = ({
 }) => {
   useEffect(() => {
     if (stationController.up()) {
+      let timeout
       const fromVolume = fromEvent(
         document.getElementById('volume'),
         'input'
@@ -29,14 +32,30 @@ const useStationHandler = ({
       )
       const fader = combineLatest([_fader, fromVolume])
       const fromError = fromEvent(current, 'error')
-      fromError.subscribe(() => {
+      const errorSub = fromError.subscribe(() => {
         setLockStations(false)
-        messageUser('faulty station - try this one later')
+        messageUser('faulty station, aborting...')
       })
 
       const fromPlaying = fromEvent(current, 'playing')
-      fromPlaying.subscribe({
+
+      const fromLoading = fromEvent(current, 'loadstart')
+
+      const loadingSub = fromLoading.subscribe({
         next: () => {
+          timeout = setTimeout(() => {
+            messageUser('Timed out, aborting...')
+            stationController.current.stream.pause()
+            backtrackCurrentStation(stationController)
+            setLockStations(false)
+            playingSub.unsubscribe()
+          }, ABORT_RADIO_INTERVAL)
+        },
+      })
+
+      const playingSub = fromPlaying.subscribe({
+        next: () => {
+          clearTimeout(timeout)
           setLockStations(false)
           last &&
             fader.subscribe({
@@ -63,7 +82,15 @@ const useStationHandler = ({
           ])
         },
       })
-      current.play().catch(backtrackCurrentStation)
+
+      current.play()
+
+      return () => {
+        clearTimeout(timeout)
+        playingSub.unsubscribe()
+        errorSub.unsubscribe()
+        loadingSub.unsubscribe()
+      }
     }
   }, [stationController])
 }

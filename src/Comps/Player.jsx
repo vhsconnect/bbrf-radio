@@ -3,6 +3,7 @@ import * as R from 'ramda'
 import Button from './Button'
 import Teleprompt from './Teleprompt'
 import useStationHandler from '../hooks/useStationHandler'
+import useQueryTrackInfo from '../hooks/useQueryTrackInfo'
 import { request } from '../utils/httpHandlers'
 
 const Player = ({
@@ -10,10 +11,13 @@ const Player = ({
   backtrackCurrentStation,
   favorites,
   messageUser,
+  defaultMessage,
   setLockStations,
   setFavorites,
-  msToVolumeRatio,
+  setTrackInfo,
   setStationController,
+  msToVolumeRatio,
+  removeFromFavorites,
 }) => {
   const [volume, setVolume] = useState(1)
   const [playerTitle, setPlayerTitle] = useState([])
@@ -37,6 +41,13 @@ const Player = ({
   useEffect(() => {
     if (current) current.volume = volume
   }, [volume])
+
+  useQueryTrackInfo({
+    stationController,
+    current,
+    defaultMessage,
+    setTrackInfo,
+  })
 
   return current ? (
     <div className="radio-player">
@@ -103,17 +114,9 @@ const Player = ({
           title="remove from favs"
           disabled={!isFav(stationController.current)}
           text="🗑"
-          onClick={() => {
-            request(
-              '/write/removeStation/' + stationController.current.stationuuid,
-              {
-                method: 'POST',
-              }
-            )
-              .then(data => data.json())
-              .then(setFavorites)
-              .catch(() => messageUser("Couldn't remove favorite"))
-          }}
+          onClick={() =>
+            removeFromFavorites(stationController.current.stationuuid)
+          }
         />
       </div>
       <input
