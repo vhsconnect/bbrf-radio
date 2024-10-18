@@ -112,16 +112,18 @@ fastify.addHook('onRequest', async (_, __) => {
 fastify.addHook('onReady', async () => {
   await fs
     .readFile(SETTINGS_FILE, (err, data) => {
-        if (err) throw err;
-        return data
+      if (err) throw err
+      return data
     })
     .then(data => data.toString())
     .then(JSON.parse)
     .then(R.prop('ITEMS_PER_PAGE'))
-    .then(R.when(R.either(R.gt(100000), R.lt(500)), x => {
-      PAGINATION_LIMIT = x
-    }))
-    .catch((e) => {
+    .then(
+      R.when(R.either(R.gt(100000), R.lt(500)), x => {
+        PAGINATION_LIMIT = x
+      })
+    )
+    .catch(e => {
       console.log(`reading ${SETTINGS_FILE} failed: ${e}`)
     })
 })

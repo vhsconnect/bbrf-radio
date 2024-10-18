@@ -5,7 +5,9 @@ export default function Button({ alternateColor, disabled, onClick, text }) {
     <button
       style={{
         cursor: 'pointer',
-        ...(alternateColor ? { color: 'seagreen', border:'solid seagreen' } : {}),
+        ...(alternateColor
+          ? { color: 'seagreen', border: 'solid seagreen' }
+          : {}),
       }}
       disabled={disabled}
       className={disabled ? 'button-disabled' : 'button'}
