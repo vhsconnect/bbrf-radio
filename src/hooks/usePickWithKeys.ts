@@ -7,6 +7,7 @@ const usePickWithKeys = ({
   filteredChannels,
   selector,
   setSelector,
+  setLockStations,
 }) => {
   // no scroll
   useEffect(() => {
@@ -24,7 +25,10 @@ const usePickWithKeys = ({
         R.cond([
           [
             e => e.key === 'Enter',
-            () => setStationController(filteredChannels[selector]),
+            () => {
+              setStationController(filteredChannels[selector])
+              setLockStations(true)
+            },
           ],
           [
             e => e.key === 'ArrowDown',
