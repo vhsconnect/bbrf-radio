@@ -33,7 +33,6 @@ const useStationHandler = ({
       const fader = combineLatest([_fader, fromVolume])
       const fromError = fromEvent(current, 'error')
       const errorSub = fromError.subscribe(() => {
-        setLockStations(false)
         messageUser('faulty station, aborting...')
       })
 

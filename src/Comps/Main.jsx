@@ -28,6 +28,14 @@ export default function Main() {
   const [deleteCandidate, setDeleteCandidate] = React.useState(null)
   const [trackInfo, setTrackInfo] = React.useState(null)
 
+  const queueStation = R.pipe(stationController.next, setStationController)
+
+  const setStation = R.ifElse(
+    Boolean,
+    () => R.identity,
+    () => queueStation
+  )
+
   const defaultMessage = radioServer
     ? `Connected to ${radioServer}`
     : 'radio-browser service might be down'
@@ -227,10 +235,7 @@ export default function Main() {
           setFavorites={setFavorites}
           setLockStations={setLockStations}
           setTrackInfo={setTrackInfo}
-          setStationController={R.pipe(
-            stationController.next,
-            setStationController
-          )}
+          setStationController={setStation(lockStations)}
           msToVolumeRatio={faderValue}
         />
       </div>
@@ -242,10 +247,7 @@ export default function Main() {
             R.isEmpty
           )([name, countrycode, tag])}
           lockStations={lockStations}
-          setStationController={R.pipe(
-            stationController.next,
-            setStationController
-          )}
+          setStationController={setStation(lockStations)}
           setLockStations={setLockStations}
           setCurrentOffset={setCurrentOffset}
           currentOffset={currentOffset}

@@ -1,8 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Radio from './Radio'
 import * as R from 'ramda'
 import usePickWithKeys from '../hooks/usePickWithKeys'
-import { useEffect } from 'react'
 
 const RadioList = ({
   channels,
@@ -28,6 +27,7 @@ const RadioList = ({
     setStationController,
     selector,
     filteredChannels,
+    setLockStations,
   })
 
   return (

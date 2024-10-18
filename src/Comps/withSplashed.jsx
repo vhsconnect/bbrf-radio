@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react'
 import * as R from 'ramda'
+
+// eslint-disable-next-line react/display-name
 const withSplashed = Child => props => {
   const { setCurrentOffset, currentOffset, paginationTarget, info } = props
 
