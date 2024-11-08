@@ -38,10 +38,7 @@
     },
     "purescript-overlay": {
       "inputs": {
-        "nixpkgs": [
-          "dream2nix",
-          "nixpkgs"
-        ],
+        "nixpkgs": ["dream2nix", "nixpkgs"],
         "slimlock": "slimlock"
       },
       "locked": {
@@ -78,20 +75,13 @@
     "root": {
       "inputs": {
         "dream2nix": "dream2nix",
-        "nixpkgs": [
-          "dream2nix",
-          "nixpkgs"
-        ],
+        "nixpkgs": ["dream2nix", "nixpkgs"],
         "utils": "utils"
       }
     },
     "slimlock": {
       "inputs": {
-        "nixpkgs": [
-          "dream2nix",
-          "purescript-overlay",
-          "nixpkgs"
-        ]
+        "nixpkgs": ["dream2nix", "purescript-overlay", "nixpkgs"]
       },
       "locked": {
         "lastModified": 1688610262,

@@ -26,5 +26,5 @@
   };
 
   name = "bbrf-radio";
-  version = "0.8.3";
+  inherit (builtins.fromJSON (builtins.readFile ../package.json)) version;
 }
