@@ -17,7 +17,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        node18 = pkgs.nodejs_18;
+        node20 = pkgs.nodejs_20;
       in
       with pkgs;
       {
@@ -37,12 +37,7 @@
           bbrf = import ./nix/module.nix self system;
           default = bbrf;
         };
-        devShells.default = mkShell {
-          buildInputs = [
-            node18
-            node2nix
-          ];
-        };
+        devShells.default = mkShell { buildInputs = [ node20 ]; };
       }
     );
 }
