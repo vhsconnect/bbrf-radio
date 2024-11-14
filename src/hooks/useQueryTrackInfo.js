@@ -80,7 +80,6 @@ export default ({
     let timeout = setTimeout(f, timeoutTime)
     return () => {
       clearTimeout(timeout)
-      setTrackInfo(null)
     }
   }, [current, defaultMessage])
 }
