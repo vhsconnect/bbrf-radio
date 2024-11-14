@@ -26,7 +26,6 @@ export default function Main() {
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
   const [deleteCandidate, setDeleteCandidate] = React.useState(null)
-  const [trackInfo, setTrackInfo] = React.useState(null)
 
   const queueStation = R.pipe(stationController.next, setStationController)
 
@@ -73,10 +72,10 @@ export default function Main() {
     const searchField = tag
       ? 'tag'
       : countrycode
-        ? 'countrycode'
-        : name
-          ? 'name'
-          : undefined
+      ? 'countrycode'
+      : name
+      ? 'name'
+      : undefined
     const value = tag || countrycode || name
     if (searchField) {
       setCurrentOffset(0)
@@ -99,10 +98,10 @@ export default function Main() {
     const searchField = tag
       ? 'tag'
       : countrycode
-        ? 'countrycode'
-        : name
-          ? 'name'
-          : undefined
+      ? 'countrycode'
+      : name
+      ? 'name'
+      : undefined
     const value = tag || countrycode || name
     // don't trigger on offset reset
     if (searchField && currentOffset) {
@@ -190,6 +189,7 @@ export default function Main() {
                     })
                   )
                   .then(setChannels)
+                  .then(R.tap(() => setRadioFilter('')))
                   .catch(() => messageUser("Couldn't fetch favorties"))
               }}
             />
@@ -200,7 +200,7 @@ export default function Main() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>
-            <Teleprompt ms={30} textStack={statusStack} trackInfo={trackInfo} />
+            <Teleprompt ms={30} textStack={statusStack} />
             {deleteCandidate &&
               R.pipe(
                 R.map(R.prop('stationuuid')),
@@ -234,8 +234,8 @@ export default function Main() {
           messageUser={messageUser}
           setFavorites={setFavorites}
           setLockStations={setLockStations}
-          setTrackInfo={setTrackInfo}
           setStationController={setStation(lockStations)}
+          setStatusStack={setStatusStack}
           msToVolumeRatio={faderValue}
         />
       </div>

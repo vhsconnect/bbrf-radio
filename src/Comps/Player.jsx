@@ -14,7 +14,7 @@ const Player = ({
   defaultMessage,
   setLockStations,
   setFavorites,
-  setTrackInfo,
+  setStatusStack,
   setStationController,
   msToVolumeRatio,
   removeFromFavorites,
@@ -46,7 +46,7 @@ const Player = ({
     stationController,
     current,
     defaultMessage,
-    setTrackInfo,
+    setStatusStack,
   })
 
   return current ? (
