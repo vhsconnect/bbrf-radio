@@ -5,7 +5,7 @@ export default ({
   stationController,
   current,
   defaultMessage,
-  setTrackInfo,
+  setStatusStack,
 }) => {
   useEffect(() => {
     let timeoutTime = 10 * 1000
@@ -65,13 +65,14 @@ export default ({
               R.either(R.prop('title'), R.prop('artists')),
               R.pipe(
                 x => `${x.artist ? x.artist + ': ' : ''}${x.title}`,
-                setTrackInfo
+                Array,
+                setStatusStack
               )
             )
           )
           .catch(() => {
             timeoutTime = timeoutTime * 4
-            setTrackInfo(null)
+            setStatusStack([])
           })
       }
       // set  as Interval
@@ -79,8 +80,8 @@ export default ({
     }
     let timeout = setTimeout(f, timeoutTime)
     return () => {
+      setStatusStack([defaultMessage])
       clearTimeout(timeout)
-      setTrackInfo(null)
     }
   }, [current, defaultMessage])
 }

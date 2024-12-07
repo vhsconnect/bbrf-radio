@@ -2,16 +2,15 @@ import React from 'react'
 import { concatMap, timer, take, interval, map } from 'rxjs'
 import * as R from 'ramda'
 
-const Teleprompt = ({ textStack, trackInfo, ms }) => {
+const Teleprompt = ({ textStack, ms }) => {
   const [displayed, setDisplayed] = React.useState('')
   const lastTextStack = React.useRef(null)
 
   let subscriptions = []
   React.useEffect(() => {
     // values are the same - do not animate
-    const stack = trackInfo ? [trackInfo] : textStack
-    if (stack[0] !== stack.current?.at(0)) {
-      stack
+    if (textStack[0] !== lastTextStack.current?.at(0)) {
+      textStack
         .map(text =>
           interval(ms).pipe(
             take(text.length),
@@ -36,10 +35,10 @@ const Teleprompt = ({ textStack, trackInfo, ms }) => {
         )
       return () => {
         subscriptions.forEach(x => x.unsubscribe())
-        lastTextStack.current = stack
+        lastTextStack.current = textStack
       }
     }
-  }, [textStack, trackInfo])
+  }, [textStack])
 
   return (
     <div>
