@@ -9,9 +9,12 @@ import got from 'got'
 import * as R from 'ramda'
 import { parse } from 'uri-template'
 import xdg from 'xdg-portable'
-import { endpoints, radioBrowserMirrors } from './api/radioBrowser.mjs'
+import { endpoints } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
 import { userAgent } from './userAgent.js'
+import dns from 'dns'
+import util from 'util'
+const resolveSrv = util.promisify(dns.resolveSrv)
 
 // mutable 🚔
 let server
@@ -61,23 +64,19 @@ fastify.register(fastifyStatic, {
 })
 
 const fetchServer = () =>
-  Promise.any(
-    radioBrowserMirrors
-      .map(x => x + '/json' + endpoints.servers)
-      .map(x => _got(x).json())
-  )
-    .then(
+  R.pipe(
+    resolveSrv,
+    R.andThen(
       R.pipe(
         R.head,
         R.prop('name'),
+        R.concat('https://'),
         R.tap(x => {
-          server = 'https://' + x
+          server = x
         })
       )
     )
-    .catch(e => {
-      console.error('ERROR trying to fetch server: ', e)
-    })
+  )('_api._tcp.radio-browser.info')
 
 const storageIsInit = R.when(R.isNil(), () =>
   fs
