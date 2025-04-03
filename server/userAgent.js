@@ -1,1 +1,1 @@
-export const userAgent = 'vhsconnect/bbrf-radio v0.8.6'
+export const userAgent = 'vhsconnect/bbrf-radio v0.8.7'
