@@ -10,9 +10,15 @@ import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
 import radioModel from '../utils/radioModel'
 import { request } from '../utils/httpHandlers'
-import { userAgent } from '../../server/userAgent'
+import { radioApi } from '../../server/api/radioBrowser.mjs'
+import { userAgent } from '../../server/userAgent.mjs'
+import { getFavorites } from '../utils/urlWriter'
+import { addFavorite, removeFavorite } from '../utils/urlWriter'
 
-export default function Main() {
+const DEFAULT_FADER_VALUE = 25
+const DEFAULT_RESULT_LIMIT = 2000
+
+export default function Main({ radioBrowserApiUrl, serverMode }) {
   const [channels, setChannels] = React.useState([])
   const [tag, setTag] = React.useState('')
   const [countrycode, setCountrycode] = React.useState('')
@@ -26,6 +32,61 @@ export default function Main() {
   const [faderValue, setFaderValue] = React.useState(25)
   const [statusStack, setStatusStack] = React.useState([])
   const [deleteCandidate, setDeleteCandidate] = React.useState(null)
+
+  const eMap = {
+    server: {
+      favorites: () => request('/favorites'),
+      fader: () => request('/fader').then(R.prop('value')),
+      searchField: (searchField, value, currentOffset) =>
+        request(`/by${searchField}/${value}?offset=${currentOffset}`),
+      addFavorite: radioPayload =>
+        request(`/write/addStation/${radioPayload.stationuuid}`, {
+          method: 'POST',
+          body: JSON.stringify(radioPayload),
+        }),
+      removeFavorite: uuid =>
+        request(`/write/removeStation/${uuid}`, { method: 'POST' }),
+      radioServer: () => request('/radio-server').then(R.prop('server')),
+      clicked: uuid => request(`/clicked/${uuid}`),
+    },
+    client: {
+      favorites: () => {
+        return Promise.resolve(getFavorites() ?? [])
+      },
+      fader: () => Promise.resolve(DEFAULT_FADER_VALUE),
+      searchField: (searchField, value, currentOffset) =>
+        searchField === 'tag'
+          ? radioApi.getByTag(
+              radioBrowserApiUrl,
+              value,
+              currentOffset,
+              DEFAULT_RESULT_LIMIT
+            )
+          : searchField === 'countrycode'
+          ? radioApi.getByCountryCode(
+              radioBrowserApiUrl,
+              value,
+              currentOffset,
+              DEFAULT_RESULT_LIMIT
+            )
+          : searchField === 'name'
+          ? radioApi.getByName(
+              radioBrowserApiUrl,
+              value,
+              currentOffset,
+              DEFAULT_RESULT_LIMIT
+            )
+          : () => {
+              throw new Error('unreacheable')
+            },
+      addFavorite,
+      removeFavorite,
+      radioServer: () => Promise.resolve(radioBrowserApiUrl),
+      clicked: uuid => radioApi.clickStation(radioBrowserApiUrl, uuid),
+    },
+  }
+
+  const api = eMap[serverMode ? 'server' : 'client']
 
   const queueStation = R.pipe(stationController.next, setStationController)
 
@@ -57,6 +118,7 @@ export default function Main() {
     setChannels,
     messageUser,
     radioFilter,
+    api,
   })
 
   useFilterRadios({
@@ -79,10 +141,8 @@ export default function Main() {
     const value = tag || countrycode || name
     if (searchField) {
       setCurrentOffset(0)
-      request(`/by${searchField}/${value}?offset=0`, {
-        method: 'GET',
-      })
-        .then(data => data.json())
+      api
+        .searchField(searchField, value, 0)
         .then(setChannels)
         .then(() => {
           window.scrollTo({ top: true, behavior: 'smooth' })
@@ -106,10 +166,8 @@ export default function Main() {
     // don't trigger on offset reset
     if (searchField && currentOffset) {
       messageUser('fetching...')
-      request(`/by${searchField}/${value}?offset=${currentOffset}`, {
-        method: 'GET',
-      })
-        .then(data => data.json())
+      api
+        .searchField(searchField, value, currentOffset)
         .then(
           R.ifElse(
             R.isEmpty,
@@ -124,17 +182,14 @@ export default function Main() {
   }, [currentOffset])
 
   React.useEffect(() => {
-    request('/radio-server')
-      .then(data => data.json())
-      .then(R.prop('server'))
+    api
+      .radioServer()
       .then(setRadioServer)
       .catch(() => messageUser('radio-browser service appears to be down'))
-  }, [])
+  }, [radioBrowserApiUrl])
 
   React.useEffect(() => {
-    request('/fader')
-      .then(data => data.text())
-      .then(setFaderValue)
+    api.fader().then(setFaderValue)
   }, [])
 
   React.useEffect(() => {
@@ -142,10 +197,8 @@ export default function Main() {
   }, [radioServer])
 
   const removeFromFavorites = uuid => {
-    request('/write/removeStation/' + uuid, {
-      method: 'POST',
-    })
-      .then(data => data.json())
+    api
+      .removeFavorite(uuid)
       .then(setFavorites)
       .catch(() => messageUser("Couldn't remove favorite"))
   }
@@ -179,8 +232,8 @@ export default function Main() {
             <Button
               text="favs"
               onClick={() => {
-                request('/favorites')
-                  .then(data => data.json())
+                api
+                  .favorites()
                   .then(
                     R.tap(() => {
                       setCountrycode('')
@@ -237,6 +290,7 @@ export default function Main() {
           setStationController={setStation(lockStations)}
           setStatusStack={setStatusStack}
           msToVolumeRatio={faderValue}
+          api={api}
         />
       </div>
       <div className="under-player">
@@ -252,6 +306,7 @@ export default function Main() {
           setCurrentOffset={setCurrentOffset}
           currentOffset={currentOffset}
           radioFilter={radioFilter}
+          api={api}
         />
         <div className="right-panel">
           {stationController.current && (

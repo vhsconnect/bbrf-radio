@@ -8,6 +8,7 @@ const Radio = ({
   setStationController,
   setLockStations,
   keyboardSelection,
+  api,
 }) => (
   <div className="fade-in">
     <Button
@@ -17,7 +18,7 @@ const Radio = ({
       onClick={() => {
         setStationController(info)
         setLockStations(true)
-        fetch('/clicked/' + info.stationuuid).catch(e => console.error(e))
+        api.clicked(info.stationuuid)
       }}
     />
   </div>
