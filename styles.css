@@ -1,0 +1,87 @@
+* {
+  background-color: black;
+  color: aquamarine;
+}
+
+button {
+  padding: 5px;
+  border: solid aquamarine 1px;
+  border-radius: 2px;
+}
+
+.sticky {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  z-index: 10;
+}
+
+.sticky + .under-player {
+  padding-top: 40px;
+}
+
+.button-disabled {
+  opacity: 0.35;
+}
+
+.radio-player {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  border: solid aquamarine 1px;
+  border-radius: 3px;
+  padding: 10px;
+}
+
+.input-fields {
+  margin: 10px;
+  width: 130px;
+  padding: 5px;
+  border-color: aquamarine;
+  border-radius: 2px;
+}
+
+.under-player {
+  opacity: 0.99;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 8;
+}
+
+.flag {
+  width: 100px;
+  border-radius: 8%;
+}
+
+.flex-div {
+  display: flex;
+}
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.fade-in {
+  animation: fadeIn 0.7s;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media only screen and (max-width: 600px) { 
+  .mobile-hidden {
+    display: none;
+}
+
+
+
