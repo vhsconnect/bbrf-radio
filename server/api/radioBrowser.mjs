@@ -27,7 +27,6 @@ export const endpoints = {
 const request = ky.extend({
   headers: {
     'user-agent': userAgent,
-  //  rain: 'sun',
   },
 })
 
