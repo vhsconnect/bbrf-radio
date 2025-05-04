@@ -1,6 +1,6 @@
 # BBRF - Barebones radio with a fader
 
-BBRF radio is a a lightweight downstream client to the delightful [radio-browser](https://de1.api.radio-browser.info/) api - a hosted service that serves metadata on all openly available online radios. You can run bbrf as a self-hosted stateful server or client only through [bbrf.vhsconnect.link](bbrf.vhsconnect.link)
+BBRF radio is a a lightweight downstream client to the delightful [radio-browser](https://de1.api.radio-browser.info/) api - a hosted service that serves metadata on all openly available online radios. You can run bbrf as a self-hosted stateful server or client only through [bbrf.vhsconnect.link](https://bbrf.vhsconnect.link)
 
 ## Client only
 
