@@ -33,7 +33,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }) {
   const [statusStack, setStatusStack] = React.useState([])
   const [deleteCandidate, setDeleteCandidate] = React.useState(null)
 
-  const eMap = {
+  const apiMap = {
     server: {
       favorites: () => request('/favorites'),
       fader: () => request('/fader').then(R.prop('value')),
@@ -86,7 +86,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }) {
     },
   }
 
-  const api = eMap[serverMode ? 'server' : 'client']
+  const api = apiMap[serverMode ? 'server' : 'client']
 
   const queueStation = R.pipe(stationController.next, setStationController)
 

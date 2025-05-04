@@ -2,8 +2,6 @@ import ky from 'ky'
 import { userAgent } from '../userAgent.mjs'
 import { parse } from 'uri-template'
 
-export const mainServer = 'https://de1.api.radio-browser.info'
-
 export const endpoints = {
   allStations: '/stations',
   clickCounter: '/url/{stationuuid}',
@@ -24,10 +22,11 @@ export const endpoints = {
   servers: '/servers',
 }
 
+const mode = typeof window !== 'undefined' ? 'client' : 'server'
+
 const request = ky.extend({
   headers: {
-    'user-agent': userAgent,
-  //  rain: 'sun',
+    'user-agent': `${userAgent} (${mode})`,
   },
 })
 
