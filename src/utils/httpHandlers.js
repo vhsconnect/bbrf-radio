@@ -12,4 +12,6 @@ export const handle5xx = data => {
 }
 
 export const request = (url, options = {}) =>
-  fetch(url, options).then(handle5xx)
+  fetch(url, options)
+    .then(handle5xx)
+    .then(x => x.json())

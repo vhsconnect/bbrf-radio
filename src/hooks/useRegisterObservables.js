@@ -11,6 +11,7 @@ export default ({
   setFavorites,
   setChannels,
   messageUser,
+  api,
 }) => {
   useEffect(() => {
     const tagsObservable = fromEvent(document.getElementById('tags'), 'input')
@@ -51,8 +52,8 @@ export default ({
       setCountrycode('')
     })
 
-    request('/favorites')
-      .then(data => data.json())
+    api
+      .favorites()
       .then(R.tap(setFavorites))
       .then(setChannels)
       .catch(() => {

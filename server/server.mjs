@@ -5,13 +5,10 @@ import { fileURLToPath } from 'url'
 import { dirname, normalize } from 'path'
 import f from 'fastify'
 import fastifyStatic from '@fastify/static'
-import got from 'got'
 import * as R from 'ramda'
-import { parse } from 'uri-template'
 import xdg from 'xdg-portable'
-import { endpoints } from './api/radioBrowser.mjs'
+import { radioApi } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
-import { userAgent } from './userAgent.js'
 import dns from 'dns'
 import util from 'util'
 const resolveSrv = util.promisify(dns.resolveSrv)
@@ -23,19 +20,6 @@ let storageFile
 const fastify = f({
   logger: process.env.RADIO_DEBUG ? true : { level: 'warn' },
   requestTimeout: 4000,
-})
-
-const _got = got.extend({
-  hooks: {
-    init: [
-      (_, options) => {
-        options.headers = {
-          ...options.headers,
-          'user-agent': userAgent,
-        }
-      },
-    ],
-  },
 })
 
 const DEFAULT_PORT = 3335
@@ -70,7 +54,6 @@ const fetchServer = () =>
       R.pipe(
         R.head,
         R.prop('name'),
-        R.concat('https://'),
         R.tap(x => {
           server = x
         })
@@ -141,7 +124,7 @@ fastify.get('/fader', (_, reply) =>
     .then(data => data.toString())
     .then(JSON.parse)
     .then(R.prop('FADER_VALUE'))
-    .then(x => reply.status(200).send(x))
+    .then(x => reply.status(200).send(JSON.stringify({ value: x })))
     .catch(() => reply.status(202).send(25))
 )
 
@@ -166,8 +149,8 @@ fastify.get('/favorites', (_, reply) => {
 })
 
 fastify.get('/stations', async (_, reply) =>
-  _got(server + '/json' + endpoints.allStations)
-    .json()
+  radioApi
+    .getAllStations(server)
     .then(value => reply.status(200).send(value))
     .catch(e => {
       reply.status(500).send({
@@ -179,14 +162,13 @@ fastify.get('/stations', async (_, reply) =>
 )
 
 fastify.get('/bytag/:tag', async (request, reply) =>
-  _got(
-    parse(server + '/json' + endpoints.byTagExact).expand({
-      searchterm: request.params.tag,
-      offset: request.query.offset * PAGINATION_LIMIT,
-      limit: PAGINATION_LIMIT,
-    })
-  )
-    .json()
+  radioApi
+    .getByTag(
+      server,
+      request.params.tag,
+      request.query.offset,
+      PAGINATION_LIMIT
+    )
     .then(value => reply.status(200).send(value))
     .catch(e => {
       reply.status(500).send({
@@ -198,14 +180,13 @@ fastify.get('/bytag/:tag', async (request, reply) =>
 )
 
 fastify.get('/bycountrycode/:cc', (request, reply) =>
-  _got(
-    parse(server + '/json' + endpoints.byCountrycodeExact).expand({
-      searchterm: request.params.cc,
-      offset: request.query.offset * PAGINATION_LIMIT,
-      limit: PAGINATION_LIMIT,
-    })
-  )
-    .json()
+  radioApi
+    .getByCountryCode(
+      server,
+      request.params.cc,
+      request.query.offset,
+      PAGINATION_LIMIT
+    )
     .then(value => reply.status(200).send(value))
     .catch(e => {
       reply.status(500).send({
@@ -217,14 +198,13 @@ fastify.get('/bycountrycode/:cc', (request, reply) =>
 )
 
 fastify.get('/byname/:name', (request, reply) =>
-  _got(
-    parse(server + '/json' + endpoints.byName).expand({
-      searchterm: request.params.name,
-      offset: request.query.offset * PAGINATION_LIMIT,
-      limit: PAGINATION_LIMIT,
-    })
-  )
-    .json()
+  radioApi
+    .getByName(
+      server,
+      request.params.name,
+      request.query.offset,
+      PAGINATION_LIMIT
+    )
     .then(value => reply.status(200).send(value))
     .catch(e => {
       reply.status(500).send({
@@ -235,11 +215,8 @@ fastify.get('/byname/:name', (request, reply) =>
 )
 
 fastify.get('/clicked/:stationuuid', async (request, reply) =>
-  _got(
-    parse(server + '/json' + endpoints.clickCounter).expand({
-      stationuuid: request.params.stationuuid,
-    })
-  )
+  radioApi
+    .clickStation(server, request.params.stationuuid)
     .then(data => reply.status(200).send(data))
     .catch(e => {
       reply.status(500).send({

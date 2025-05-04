@@ -1,5 +1,6 @@
-export const mainServer = 'https://de1.api.radio-browser.info'
-
+import ky from 'ky'
+import { userAgent } from '../userAgent.mjs'
+import { parse } from 'uri-template'
 
 export const endpoints = {
   allStations: '/stations',
@@ -19,4 +20,51 @@ export const endpoints = {
   byTag: '/stations/bytag/{searchterm}{?offset,limit}',
   byTagExact: '/stations/bytagexact/{searchterm}{?offset,limit}',
   servers: '/servers',
+}
+
+const mode = typeof window !== 'undefined' ? 'client' : 'server'
+
+const request = ky.extend({
+  headers: {
+    'user-agent': `${userAgent} (${mode})`,
+  },
+})
+
+export const radioApi = {
+  getAllStations: server =>
+    request(`https://${server}/json${endpoints.allStations}`).json(),
+
+  getByTag: (server, tag, offset, limit) =>
+    request(
+      parse(`https://${server}/json${endpoints.byTagExact}`).expand({
+        searchterm: tag,
+        offset: offset * limit,
+        limit: limit,
+      })
+    ).json(),
+
+  getByCountryCode: (server, cc, offset, limit) =>
+    request(
+      parse(`https://${server}/json${endpoints.byCountrycodeExact}`).expand({
+        searchterm: cc,
+        offset: offset * limit,
+        limit: limit,
+      })
+    ).json(),
+
+  getByName: (server, name, offset, limit) =>
+    request(
+      parse(`https://${server}/json${endpoints.byName}`).expand({
+        searchterm: name,
+        offset: offset * limit,
+        limit: limit,
+      })
+    ).json(),
+
+  clickStation: (server, stationuuid) =>
+    request(
+      parse(`https://${server}/json${endpoints.clickCounter}`).expand({
+        stationuuid: stationuuid,
+      })
+    ).json(),
 }

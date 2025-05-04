@@ -4,7 +4,6 @@ import Button from './Button'
 import Teleprompt from './Teleprompt'
 import useStationHandler from '../hooks/useStationHandler'
 import useQueryTrackInfo from '../hooks/useQueryTrackInfo'
-import { request } from '../utils/httpHandlers'
 
 const Player = ({
   stationController,
@@ -18,6 +17,7 @@ const Player = ({
   setStationController,
   msToVolumeRatio,
   removeFromFavorites,
+  api,
 }) => {
   const [volume, setVolume] = useState(1)
   const [playerTitle, setPlayerTitle] = useState([])
@@ -78,34 +78,22 @@ const Player = ({
           disabled={isFav(stationController.current)}
           text="🌟"
           onClick={() => {
-            request(
-              R.pipe(
-                R.map(x => x(stationController)),
-                R.join('/')
-              )([
-                R.always('/write/addStation'),
-                R.path(['current', 'stationuuid']),
-              ]),
-              {
-                method: 'POST',
-                body: R.pipe(
-                  R.applySpec({
-                    countrycode: R.either(
-                      R.path(['current', 'countrycode']),
-                      R.always('none')
-                    ),
-                    url: R.path(['current', 'url_resolved']),
-                    name: R.path(['current', 'name']),
-                    bitrate: R.either(
-                      R.path(['current', 'bitrate']),
-                      R.always(0)
-                    ),
-                  }),
-                  JSON.stringify
-                )(stationController),
-              }
-            )
-              .then(data => data.json())
+            api
+              .addFavorite(
+                R.applySpec({
+                  stationuuid: R.path(['current', 'stationuuid']),
+                  countrycode: R.either(
+                    R.path(['current', 'countrycode']),
+                    R.always('none')
+                  ),
+                  url: R.path(['current', 'url_resolved']),
+                  name: R.path(['current', 'name']),
+                  bitrate: R.either(
+                    R.path(['current', 'bitrate']),
+                    R.always(0)
+                  ),
+                })(stationController)
+              )
               .then(setFavorites)
               .catch(() => messageUser("Couldn't add favorite"))
           }}
@@ -134,4 +122,5 @@ const Player = ({
     <div></div>
   )
 }
+
 export default Player

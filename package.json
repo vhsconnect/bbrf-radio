@@ -1,17 +1,19 @@
 {
   "name": "bbrf-radio",
-  "version": "0.8.7",
+  "version": "0.9.0",
   "main": "./server/server.mjs",
   "author": "vhsconnect",
   "license": "GPL-2.0-only",
   "private": false,
+  "homepage": "https://vhsconnect.github.io/bbrf-radio",
   "type": "module",
   "scripts": {
     "dev": "RADIO_DEBUG=1 node --watch server/server.mjs & npm run hot",
     "app": "node server/server.mjs",
     "start": "npm run build && npm run app",
-    "hot": "esbuild src/Comps/App.jsx --bundle --outfile=./index.js --watch",
-    "build": "esbuild src/Comps/App.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --minify --outfile=./index.js",
+    "hot": "esbuild src/Comps/App.jsx --bundle --loader:.mjs=js --outfile=./index.js --watch",
+    "build": "esbuild src/Comps/App.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./index.js",
+    "build4pages": "esbuild src/Comps/App.Client.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./pages/index.js",
     "build-nix-local": "nix build . --impure"
   },
   "dependencies": {
@@ -19,6 +21,7 @@
     "esbuild": "^0.18.8",
     "fastify": "^4.26.0",
     "got": "^12.6.1",
+    "ky": "^1.8.0",
     "ramda": "^0.28.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
@@ -29,7 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "eslint": "^8.57.1",
-    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react": "^7.37.5",
     "globals": "^15.14.0",
     "prettier": "^2.5.1"
   },

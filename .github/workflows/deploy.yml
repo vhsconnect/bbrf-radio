@@ -1,0 +1,32 @@
+name: deploy
+on:
+  push:
+    branches: [pages-dev]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build and prepare files
+        run: |
+          mkdir -p pages/
+          cp index.html pages/
+          cp styles.css pages/
+          cp favicon-16x16.png pages/
+          npm install
+          npm run build4pages
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages

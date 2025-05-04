@@ -11,6 +11,7 @@ const RadioList = ({
   currentOffset,
   setLockStations,
   setCurrentOffset,
+  api,
   radioFilter,
 }) => {
   const [selector, setSelector] = useState(0)
@@ -45,6 +46,7 @@ const RadioList = ({
             paginationTarget={!isFavsList && y === channels.length - 1}
             currentOffset={currentOffset}
             setCurrentOffset={setCurrentOffset}
+            api={api}
           />
         </div>
       ))}
