@@ -1,7 +1,21 @@
-import React, { useState, useEffect } from 'react'
-import Radio from './Radio'
+import React, { useEffect, useState } from 'react'
 import * as R from 'ramda'
 import usePickWithKeys from '../hooks/usePickWithKeys'
+import type { RadioCollection, Radio as RadioType } from '../types'
+import Radio from './Radio'
+import type { Api } from './Main'
+
+interface Props {
+  channels: RadioCollection
+  lockStations: boolean
+  setStationController: (x: RadioType) => void
+  setLockStations: (x: boolean) => void
+  api: Api
+  isFavsList: boolean
+  currentOffset: number
+  setCurrentOffset: (x: number) => void
+  radioFilter: string
+}
 
 const RadioList = ({
   channels,
@@ -13,7 +27,7 @@ const RadioList = ({
   setCurrentOffset,
   api,
   radioFilter,
-}) => {
+}: Props) => {
   const [selector, setSelector] = useState(0)
   const filteredChannels = channels.filter(
     R.pipe(R.prop('name'), R.toLower, R.includes(radioFilter))

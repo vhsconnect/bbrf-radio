@@ -18,6 +18,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         node22 = pkgs.nodejs_22;
+        typescript = pkgs.typescript;
       in
       with pkgs;
       {
@@ -37,7 +38,12 @@
           bbrf = import ./nix/module.nix self system;
           default = bbrf;
         };
-        devShells.default = mkShell { buildInputs = [ node22 ]; };
+        devShells.default = mkShell {
+          buildInputs = [
+            node22
+            typescript
+          ];
+        };
       }
     );
 }

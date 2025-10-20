@@ -1,13 +1,14 @@
 import React from 'react'
 
-import { concatMap, timer, take, interval, map } from 'rxjs'
+import type { Subscription } from 'rxjs'
+import { concatMap, interval, map, take, timer } from 'rxjs'
 import * as R from 'ramda'
 
-const Teleprompt = ({ textStack, ms }) => {
+const Teleprompt = ({ textStack, ms }: { textStack: string[]; ms: number }) => {
   const [displayed, setDisplayed] = React.useState('')
-  const lastTextStack = React.useRef(null)
+  const lastTextStack = React.useRef<string[] | null>(null)
 
-  let subscriptions = []
+  const subscriptions: Subscription[] = []
   React.useEffect(() => {
     // values are the same - do not animate
     if (textStack[0] !== lastTextStack.current?.at(0)) {

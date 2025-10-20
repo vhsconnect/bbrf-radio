@@ -1,12 +1,20 @@
 import { useEffect } from 'react'
 import * as R from 'ramda'
+import type { RadioInterface  } from '../types'
+
+interface Props {
+  stationController: RadioInterface
+  current: HTMLAudioElement
+  defaultMessage: string
+  setStatusStack: (xs: string[]) => void
+}
 
 export default ({
   stationController,
   current,
   defaultMessage,
   setStatusStack,
-}) => {
+}: Props) => {
   useEffect(() => {
     let timeoutTime = 10 * 1000
 
@@ -14,30 +22,31 @@ export default ({
       if (stationController.current) {
         const url = stationController.current.url
 
-        const maybeXsl = R.pipe(
+        const maybeXsl = R.pipe<[string], string[], string[], string, string>(
           R.split('/'),
           R.dropLast(1),
           R.join('/'),
-          R.flip(R.concat)('/status-json.xsl')
+          R.concat(R.__, '/status-json.xsl')
         )
-        const maybeXsl2 = R.pipe(
+
+        const maybeXsl2 = R.pipe<[string], string[], string[], string, string>(
           R.split('/'),
           R.dropLast(2),
           R.join('/'),
-          R.flip(R.concat)('/status-json.xsl')
+          R.concat(R.__, '/status-json.xsl')
         )
 
-        const normalize = R.pipe(
-          R.replace(':80', ''),
-          R.replace('https', 'http')
+        const normalize: (x: string | undefined) => string | undefined = R.when(
+          R.complement(R.isNil),
+          R.pipe(R.replace(':80', ''), R.replace('https', 'http'))
         )
 
-        Promise.allSettled([fetch(maybeXsl(url), fetch(maybeXsl2(url)))])
+        Promise.allSettled([fetch(maybeXsl(url)), fetch(maybeXsl2(url))])
           .then(results =>
             results.filter(x => x.status === 'fulfilled').map(x => x.value)
           )
           .then(R.head)
-          .then(x => x.json())
+          .then(x => (x as Response).json())
           .then(x => x.icestats?.source)
           .then(
             R.when(

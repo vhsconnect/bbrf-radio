@@ -1,16 +1,25 @@
 import React, { useEffect } from 'react'
 import * as R from 'ramda'
 
-// eslint-disable-next-line react/display-name
-const withSplashed = Child => props => {
+interface Props {
+  setCurrentOffset: (offset: number) => void
+  currentOffset: number
+  paginationTarget: boolean
+  info: any
+  observerId: string
+  [key: string]: any
+}
+
+const withSplashed = (Child: React.FC<any>) => (props: Props) => {
   const { setCurrentOffset, currentOffset, paginationTarget, info } = props
 
   useEffect(() => {
-    const _setCurrentOffset = R.memoizeWith(R.identity, setCurrentOffset)
-    let splashObserver = new IntersectionObserver(
-      R.when(R.pathEq([0, 'isIntersecting'], true), () =>
+    const _setCurrentOffset = R.memoizeWith(String, setCurrentOffset)
+    const splashObserver = new IntersectionObserver(
+      R.when(R.pathEq(true, [0, 'isIntersecting']), () =>
         _setCurrentOffset(currentOffset + 1)
       ),
+
       {
         root: null,
         rootMargin: '0px',
@@ -18,12 +27,16 @@ const withSplashed = Child => props => {
       }
     )
     const target = document.getElementById(props.observerId)
-    paginationTarget ? splashObserver.observe(target) : null
-    return paginationTarget
-      ? () => {
+
+    if (target) {
+      if (paginationTarget) {
+        splashObserver.observe(target)
+
+        return () => {
           splashObserver.unobserve(target)
         }
-      : null
+      }
+    }
   }, [info])
 
   return (

@@ -7,11 +7,11 @@
         "pyproject-nix": "pyproject-nix"
       },
       "locked": {
-        "lastModified": 1722526955,
-        "narHash": "sha256-fFS8aDnfK9Qfm2FLnQ8pqWk8FzvFEv5LvTuZTZLREnc=",
+        "lastModified": 1754978539,
+        "narHash": "sha256-nrDovydywSKRbWim9Ynmgj8SBm8LK3DI2WuhIqzOHYI=",
         "owner": "nix-community",
         "repo": "dream2nix",
-        "rev": "3fd4c14d3683baac8d1f94286ae14fe160888b51",
+        "rev": "fbec3263cb4895ac86ee9506cdc4e6919a1a2214",
         "type": "github"
       },
       "original": {
@@ -20,13 +20,29 @@
         "type": "github"
       }
     },
+    "flake-compat": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1696426674,
+        "narHash": "sha256-kvjfFW7WAETZlt09AgDn1MrtKzP7t90Vf7vypd3OL1U=",
+        "owner": "edolstra",
+        "repo": "flake-compat",
+        "rev": "0f9255e01c2351cc7d116c072cb317785dd33b33",
+        "type": "github"
+      },
+      "original": {
+        "owner": "edolstra",
+        "repo": "flake-compat",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1720181791,
-        "narHash": "sha256-i4vJL12/AdyuQuviMMd1Hk2tsGt02hDNhA0Zj1m16N8=",
+        "lastModified": 1750215678,
+        "narHash": "sha256-Rc/ytpamXRf6z8UA2SGa4aaWxUXRbX2MAWIu2C8M+ok=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4284c2b73c8bce4b46a6adf23e16d9e2ec8da4bb",
+        "rev": "5395fb3ab3f97b9b7abca147249fa2e8ed27b192",
         "type": "github"
       },
       "original": {
@@ -38,15 +54,19 @@
     },
     "purescript-overlay": {
       "inputs": {
-        "nixpkgs": ["dream2nix", "nixpkgs"],
+        "flake-compat": "flake-compat",
+        "nixpkgs": [
+          "dream2nix",
+          "nixpkgs"
+        ],
         "slimlock": "slimlock"
       },
       "locked": {
-        "lastModified": 1696022621,
-        "narHash": "sha256-eMjFmsj2G1E0Q5XiibUNgFjTiSz0GxIeSSzzVdoN730=",
+        "lastModified": 1728546539,
+        "narHash": "sha256-Sws7w0tlnjD+Bjck1nv29NjC5DbL6nH5auL9Ex9Iz2A=",
         "owner": "thomashoneyman",
         "repo": "purescript-overlay",
-        "rev": "047c7933abd6da8aa239904422e22d190ce55ead",
+        "rev": "4ad4c15d07bd899d7346b331f377606631eb0ee4",
         "type": "github"
       },
       "original": {
@@ -56,18 +76,22 @@
       }
     },
     "pyproject-nix": {
-      "flake": false,
+      "inputs": {
+        "nixpkgs": [
+          "dream2nix",
+          "nixpkgs"
+        ]
+      },
       "locked": {
-        "lastModified": 1702448246,
-        "narHash": "sha256-hFg5s/hoJFv7tDpiGvEvXP0UfFvFEDgTdyHIjDVHu1I=",
-        "owner": "davhau",
+        "lastModified": 1752481895,
+        "narHash": "sha256-luVj97hIMpCbwhx3hWiRwjP2YvljWy8FM+4W9njDhLA=",
+        "owner": "pyproject-nix",
         "repo": "pyproject.nix",
-        "rev": "5a06a2697b228c04dd2f35659b4b659ca74f7aeb",
+        "rev": "16ee295c25107a94e59a7fc7f2e5322851781162",
         "type": "github"
       },
       "original": {
-        "owner": "davhau",
-        "ref": "dream2nix",
+        "owner": "pyproject-nix",
         "repo": "pyproject.nix",
         "type": "github"
       }
@@ -75,20 +99,27 @@
     "root": {
       "inputs": {
         "dream2nix": "dream2nix",
-        "nixpkgs": ["dream2nix", "nixpkgs"],
+        "nixpkgs": [
+          "dream2nix",
+          "nixpkgs"
+        ],
         "utils": "utils"
       }
     },
     "slimlock": {
       "inputs": {
-        "nixpkgs": ["dream2nix", "purescript-overlay", "nixpkgs"]
+        "nixpkgs": [
+          "dream2nix",
+          "purescript-overlay",
+          "nixpkgs"
+        ]
       },
       "locked": {
-        "lastModified": 1688610262,
-        "narHash": "sha256-Wg0ViDotFWGWqKIQzyYCgayeH8s4U1OZcTiWTQYdAp4=",
+        "lastModified": 1688756706,
+        "narHash": "sha256-xzkkMv3neJJJ89zo3o2ojp7nFeaZc2G0fYwNXNJRFlo=",
         "owner": "thomashoneyman",
         "repo": "slimlock",
-        "rev": "b5c6cdcaf636ebbebd0a1f32520929394493f1a6",
+        "rev": "cf72723f59e2340d24881fd7bf61cb113b4c407c",
         "type": "github"
       },
       "original": {
@@ -117,11 +148,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1710146030,
-        "narHash": "sha256-SZ5L6eA7HJ/nmkzGG7/ISclqe6oZdOZTNoesiInkXPQ=",
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "b1d9ab70662946ef0850d488da1c9019f3a9752a",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
         "type": "github"
       },
       "original": {

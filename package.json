@@ -11,30 +11,39 @@
     "dev": "RADIO_DEBUG=1 node --watch server/server.mjs & npm run hot",
     "app": "node server/server.mjs",
     "start": "npm run build && npm run app",
-    "hot": "esbuild src/Comps/App.jsx --bundle --loader:.mjs=js --outfile=./index.js --watch",
-    "build": "esbuild src/Comps/App.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./index.js",
-    "build4pages": "esbuild src/Comps/App.Client.jsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./pages/index.js",
-    "build-nix-local": "nix build . --impure"
+    "hot": "esbuild src/Comps/App.tsx --bundle --loader:.mjs=js --outfile=./index.js --watch",
+    "build": "esbuild src/Comps/App.tsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./index.js",
+    "build4pages": "esbuild src/Comps/App.Client.tsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./pages/index.js",
+    "build-nix-local": "nix build . --impure",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/static": "^7.0.0",
+    "effect": "^3.18.4",
     "esbuild": "^0.18.8",
     "fastify": "^4.26.0",
     "got": "^12.6.1",
     "ky": "^1.8.0",
-    "ramda": "^0.28.0",
+    "ramda": "^0.31.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "rxjs": "^7.5.4",
+    "typescript": "^5.9.3",
     "uri-template": "^2.0.0",
     "xdg-portable": "^10.5.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.20.0",
-    "eslint": "^8.57.1",
+    "@types/ramda": "^0.31.0",
+    "@types/react": "^17",
+    "@types/react-dom": "^17",
+    "eslint": "^9.13.0",
+    "eslint-plugin-import-x": "^4.3.1",
+    "eslint-plugin-n": "^17.11.1",
     "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-regexp": "^2.6.0",
     "globals": "^15.14.0",
-    "prettier": "^2.5.1"
+    "prettier": "^2.5.1",
+    "typescript-eslint": "^8.46.2"
   },
   "bin": "./server/server.mjs"
 }

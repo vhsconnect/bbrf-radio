@@ -3,14 +3,14 @@
 import * as fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { dirname, normalize } from 'path'
+import dns from 'dns'
+import util from 'util'
 import f from 'fastify'
 import fastifyStatic from '@fastify/static'
 import * as R from 'ramda'
 import xdg from 'xdg-portable'
 import { radioApi } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
-import dns from 'dns'
-import util from 'util'
 const resolveSrv = util.promisify(dns.resolveSrv)
 
 // mutable 🚔
@@ -270,7 +270,7 @@ fastify.post('/write/removeStation/:stationuuid', (request, reply) =>
       R.assoc(
         'favorites',
         R.reject(
-          R.propEq('stationuuid', request.params.stationuuid),
+          R.propEq(request.params.stationuuid, 'stationuuid'),
           store.favorites
         ),
         store
@@ -287,7 +287,7 @@ fastify.post('/write/removeStation/:stationuuid', (request, reply) =>
 
 const start = async () => {
   try {
-    let Port = await fs
+    const Port = await fs
       .readFile(SETTINGS_FILE)
       .then(data => data.toString())
       .then(JSON.parse)

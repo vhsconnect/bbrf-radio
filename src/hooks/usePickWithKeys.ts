@@ -1,6 +1,15 @@
 import { useEffect } from 'react'
 import * as R from 'ramda'
-import { fromEvent, filter } from 'rxjs'
+import { filter, fromEvent } from 'rxjs'
+import type { Radio, RadioCollection } from '../types';
+
+interface Props {
+  setStationController: (x: Radio) => void
+  filteredChannels: RadioCollection
+  selector: number
+  setSelector: (x: number) => void
+  setLockStations: (x: boolean) => void
+}
 
 const usePickWithKeys = ({
   setStationController,
@@ -8,7 +17,7 @@ const usePickWithKeys = ({
   selector,
   setSelector,
   setLockStations,
-}) => {
+}: Props) => {
   // no scroll
   useEffect(() => {
     document.addEventListener('keydown', e => {

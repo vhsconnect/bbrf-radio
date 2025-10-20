@@ -1,9 +1,22 @@
 import { useEffect } from 'react'
 import { combineLatest, fromEvent, interval } from 'rxjs'
-import { takeWhile, startWith, map } from 'rxjs/operators'
+import { map, startWith, takeWhile } from 'rxjs/operators'
 import * as R from 'ramda'
+import type { RadioInterface } from '../types'
 
 const ABORT_RADIO_INTERVAL = 5000
+
+interface Props {
+  stationController: RadioInterface
+  volume: number
+  msToVolumeRatio: number
+  current: HTMLAudioElement
+  last: HTMLAudioElement | undefined
+  setLockStations: (x: boolean) => void
+  messageUser: (x: string) => void
+  setPlayerTitle: (x: string[]) => void
+  backtrackCurrentStation: (x: RadioInterface) => void
+}
 
 const useStationHandler = ({
   stationController,
@@ -15,17 +28,24 @@ const useStationHandler = ({
   messageUser,
   setPlayerTitle,
   backtrackCurrentStation,
-}) => {
+}: Props) => {
   useEffect(() => {
     if (stationController.up()) {
-      let timeout
-      const fromVolume = fromEvent(
-        document.getElementById('volume'),
-        'input'
-      ).pipe(
-        startWith(null),
-        map(x => x && x.target.valueAsNumber / 10)
-      )
+      let timeout: number
+
+      const volumeElement = document.getElementById(
+        'volume'
+      ) as HTMLInputElement | null
+      const fromVolume = volumeElement
+        ? fromEvent<Event>(volumeElement, 'input').pipe(
+            startWith(null),
+            map(x => x && (x.target as HTMLInputElement)?.valueAsNumber / 10)
+          )
+        : fromEvent<Event>([], 'input').pipe(
+            startWith(null),
+            map(x => x && (x.target as HTMLInputElement)?.valueAsNumber / 10)
+          )
+
       const _fader = interval(msToVolumeRatio / (volume || 1)).pipe(
         map(R.pipe(R.subtract(volume * 100), R.flip(R.divide)(100))),
         takeWhile(R.flip(R.gte)(0))
@@ -60,13 +80,13 @@ const useStationHandler = ({
             fader.subscribe({
               next([x, y]) {
                 if (R.pipe(R.isNil, R.not)(y)) {
-                  current.volume = y
+                  current.volume = y as number
                   last.volume = 0
                   last.pause()
                   return
                 }
-                last.volume = x
-                current.volume = volume - x
+                last.volume = Number(x)
+                current.volume = Number(volume - Number(x))
                 x === 0 ? last.pause() : null
               },
               complete() {

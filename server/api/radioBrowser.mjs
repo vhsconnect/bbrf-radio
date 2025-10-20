@@ -1,6 +1,6 @@
 import ky from 'ky'
-import { userAgent } from '../userAgent.mjs'
 import { parse } from 'uri-template'
+import { userAgent } from '../userAgent.mjs'
 
 export const endpoints = {
   allStations: '/stations',

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom'
-import Main from './Main'
 import * as R from 'ramda'
+import Main from './Main'
 
 const cloudflareDns = 'https://cloudflare-dns.com/dns-query'
 const radioBrowserRequest = () =>
@@ -21,6 +21,7 @@ const App = () => {
         R.pipe(
           R.prop('Answer'),
           R.head,
+          // @ts-expect-error
           R.prop('data'),
           R.split(' '),
           x => x[3],

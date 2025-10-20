@@ -1,8 +1,11 @@
 import * as R from 'ramda'
+import type { Radio, RadioCollection } from '../types'
 
-export const addFavorite = radioPayload => {
+export const addFavorite = (radioPayload: Radio): Promise<RadioCollection> => {
   const searchParams = new URLSearchParams(window.location.search)
-  const favorites = R.flip(R.concat)([radioPayload])(getFavorites() ?? [])
+  const favorites: RadioCollection = R.concat(getFavorites() ?? [], [
+    radioPayload,
+  ])
   const encodedFavorites = R.pipe(JSON.stringify, encodeURI)(favorites)
 
   searchParams.set('favorites', encodedFavorites)
@@ -12,10 +15,9 @@ export const addFavorite = radioPayload => {
   return Promise.resolve(favorites)
 }
 
-export const removeFavorite = uuid => {
+export const removeFavorite = (uuid: string): Promise<RadioCollection> => {
   const searchParams = new URLSearchParams(window.location.search)
-  const favorites = R.reject(
-    R.propEq('stationuuid', uuid),
+  const favorites = R.reject<Radio>((x: Radio) => x.stationuuid === uuid)(
     getFavorites() ?? []
   )
 
@@ -28,7 +30,7 @@ export const removeFavorite = uuid => {
   return Promise.resolve(favorites)
 }
 
-export const getFavorites = () => {
+export const getFavorites = (): RadioCollection | undefined => {
   const searchParams = new URLSearchParams(window.location.search)
   const favorites = searchParams.get('favorites')
   if (favorites) {
