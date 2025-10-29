@@ -1,4 +1,5 @@
 node_modules/
+pages/
 index.js
 storage.json
 storage-backup.json

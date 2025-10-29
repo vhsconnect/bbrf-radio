@@ -13,7 +13,7 @@ import { radioApi } from './api/radioBrowser.mjs'
 import { fav } from './models/fav.mjs'
 const resolveSrv = util.promisify(dns.resolveSrv)
 
-// mutable 🚔
+// global 🚔
 let server
 let storageFile
 
