@@ -1,7 +1,6 @@
 {
   description = ''Browse, favorite and play online radios in your browser'';
   inputs = {
-    nixpkgs.url = "github:nixOS/nixpkgs";
     dream2nix.url = "github:nix-community/dream2nix";
     utils.url = "github:numtide/flake-utils";
     nixpkgs.follows = "dream2nix/nixpkgs";
