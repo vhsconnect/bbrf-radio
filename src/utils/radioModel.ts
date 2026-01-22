@@ -1,10 +1,10 @@
 import * as R from 'ramda'
-const subtract = R.flip(R.subtract)
+import type { Radio, RadioInterface, RadioStream } from '../types'
 
-const radioModel = (v = []) => {
-  const pub = {
-    values: v,
-    next(x) {
+const radioModel = (xs: Array<RadioStream> = []): RadioInterface => {
+  const pub: RadioInterface = {
+    values: xs,
+    next(x: Radio) {
       // dont cache audio packets
       const cacheBust = Math.random() * 100
       const stream = new Audio(
@@ -25,17 +25,12 @@ const radioModel = (v = []) => {
     },
     get last() {
       if (this.values.length > 1) {
-        let radio = this.values[this.values.length - 2]
+        const radio = this.values[this.values.length - 2]
         return radio
       }
     },
     remove() {
-      return R.pipe(
-        R.length,
-        subtract(1),
-        R.flip(R.take)(this.values),
-        radioModel
-      )(this.values)
+      return radioModel(R.dropLast(1, this.values))
     },
     get current() {
       return this.values[this.values.length - 1]

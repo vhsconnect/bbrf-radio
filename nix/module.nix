@@ -56,11 +56,28 @@ in
         User account under which both the service and the web-application run.
       '';
     };
+
+    serveStaticSite = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Additionally, serve all client build
+      '';
+    };
+
+    staticSiteServedOn = mkOption {
+      type = types.int;
+      default = 3336;
+      description = ''
+        Port for serving all client build
+      '';
+    };
+
   };
 
   config = mkIf cfg.enable (mkMerge [
-    (optionalAttrs (isDarwin system) {
 
+    (optionalAttrs (isDarwin system) {
       launchd.user.agents.bbrf = {
         script = ''
           SETTINGS_FILE=/Users/${cfg.user}/Library/Preferences/bbrf-radio/settings.json
@@ -80,7 +97,25 @@ in
       };
 
     })
+
+    (optionalAttrs ((isDarwin system) && (cfg.serveStaticSite)) {
+      launchd.user.agents.bbrf = {
+        script = ''
+          ${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/lib/node_modules/bbrf-radio/pages ${cfg.staticsiteservedon}
+
+        '';
+        serviceConfig = {
+          KeepAlive = true;
+          RunAtLoad = true;
+          StandardOutPath = "/Users/${cfg.user}/Library/Logs/bbrf-static.out.log";
+          StandardErrorPath = "/Users/${cfg.user}/Library/Logs/bbrf-static.err.log";
+        };
+      };
+
+    })
+
     (optionalAttrs (!(isDarwin system)) {
+
       systemd.services.bbrf = {
         description = "bbrf-radio server";
         wantedBy = [ "multi-user.target" ];
@@ -89,6 +124,28 @@ in
           Type = "simple";
           User = cfg.user;
           ExecStart = "${bbrf-radio}/bin/bbrf-radio";
+        };
+        preStart = ''
+          SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
+          mkdir -p /home/${cfg.user}/.config/bbrf-radio
+          cat <<EOF > $SETTINGS_FILE
+          ${json}
+          EOF
+        '';
+      };
+
+    })
+
+    (optionalAttrs (!((isDarwin system) && cfg.serveStaticSite)) {
+
+      systemd.services.bbrf-static = {
+        description = "bbrf-radio static";
+        wantedBy = [ "multi-user.target" ];
+        wants = [ "network-online.target" ];
+        serviceConfig = {
+          Type = "simple";
+          User = cfg.user;
+          ExecStart = "${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/lib/node_modules/bbrf-radio/pages ${builtins.toString cfg.staticSiteServedOn}";
         };
         preStart = ''
           SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json

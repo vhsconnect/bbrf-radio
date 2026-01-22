@@ -1,6 +1,6 @@
 import ky from 'ky'
-import { userAgent } from '../userAgent.mjs'
 import { parse } from 'uri-template'
+import { userAgent } from '../userAgent.mjs'
 
 export const endpoints = {
   allStations: '/stations',
@@ -33,6 +33,7 @@ const request = ky.extend({
 export const radioApi = {
   getAllStations: server =>
     request(`https://${server}/json${endpoints.allStations}`).json(),
+
 
   getByTag: (server, tag, offset, limit) =>
     request(

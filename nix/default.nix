@@ -10,8 +10,20 @@
     dream2nix.modules.dream2nix.nodejs-granular-v3
   ];
 
+  deps =
+    { nixpkgs, ... }:
+    {
+      inherit (nixpkgs)
+        gnugrep
+        stdenv
+        ;
+    };
+
   mkDerivation = {
     src = ../.;
+    preBuild = ''
+      npm run build:static
+    '';
 
     meta = with lib; {
       description = "browse, favorite and play online radios in your browser";

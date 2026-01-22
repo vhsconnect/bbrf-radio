@@ -23,7 +23,7 @@ jobs:
           cp styles.css pages/
           cp favicon-16x16.png pages/
           npm install
-          npm run build4pages
+          npm run build:static 
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

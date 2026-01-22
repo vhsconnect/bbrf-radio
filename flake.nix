@@ -1,7 +1,6 @@
 {
   description = ''Browse, favorite and play online radios in your browser'';
   inputs = {
-    nixpkgs.url = "github:nixOS/nixpkgs";
     dream2nix.url = "github:nix-community/dream2nix";
     utils.url = "github:numtide/flake-utils";
     nixpkgs.follows = "dream2nix/nixpkgs";
@@ -18,6 +17,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         node22 = pkgs.nodejs_22;
+        typescript = pkgs.typescript;
       in
       with pkgs;
       {
@@ -37,7 +37,12 @@
           bbrf = import ./nix/module.nix self system;
           default = bbrf;
         };
-        devShells.default = mkShell { buildInputs = [ node22 ]; };
+        devShells.default = mkShell {
+          buildInputs = [
+            node22
+            typescript
+          ];
+        };
       }
     );
 }

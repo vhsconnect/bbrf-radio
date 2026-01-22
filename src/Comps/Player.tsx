@@ -1,9 +1,27 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import * as R from 'ramda'
-import Button from './Button'
-import Teleprompt from './Teleprompt'
+import { Effect } from 'effect'
 import useStationHandler from '../hooks/useStationHandler'
 import useQueryTrackInfo from '../hooks/useQueryTrackInfo'
+import type { Radio, RadioCollection, RadioInterface } from '../types'
+import Button from './Button'
+import Teleprompt from './Teleprompt'
+import type { Api } from './Main'
+
+interface Props {
+  stationController: RadioInterface
+  backtrackCurrentStation: (x: RadioInterface) => void
+  favorites: RadioCollection
+  messageUser: (x: string) => void
+  defaultMessage: string
+  setLockStations: (x: boolean) => void
+  setFavorites: (x: RadioCollection) => void
+  setStatusStack: (xs: string[]) => void
+  setStationController: (x: Radio) => void
+  msToVolumeRatio: number
+  removeFromFavorites: (uuid: string) => void
+  api: Api
+}
 
 const Player = ({
   stationController,
@@ -18,12 +36,12 @@ const Player = ({
   msToVolumeRatio,
   removeFromFavorites,
   api,
-}) => {
+}: Props) => {
   const [volume, setVolume] = useState(1)
-  const [playerTitle, setPlayerTitle] = useState([])
+  const [playerTitle, setPlayerTitle] = useState<string[]>([])
   const current = stationController.current?.stream
   const last = stationController.last?.stream
-  const isFav = x =>
+  const isFav = (x: Radio) =>
     R.includes(x.stationuuid)(R.map(R.prop('stationuuid'), favorites))
 
   useStationHandler({
@@ -56,13 +74,16 @@ const Player = ({
           text={'⏮️'}
           disabled={stationController.values.length < 2}
           onClick={() => {
-            setLockStations(true)
-            stationController.last.stream.load()
-            setStationController(stationController.last)
+            if (stationController.last) {
+              setLockStations(true)
+              stationController.last.stream.load()
+              setStationController(stationController.last)
+            }
           }}
         />
         <Button
           text={'⏯️'}
+          disabled={false}
           onClick={() => {
             if (current.paused) {
               current.load()
@@ -74,19 +95,21 @@ const Player = ({
       <Teleprompt textStack={playerTitle} ms={60} />
       <div>
         <Button
-          title="add to favs"
           disabled={isFav(stationController.current)}
           text="🌟"
           onClick={() => {
-            api
-              .addFavorite(
+            Effect.runPromise(
+              api.addFavorite(
                 R.applySpec({
                   stationuuid: R.path(['current', 'stationuuid']),
                   countrycode: R.either(
                     R.path(['current', 'countrycode']),
                     R.always('none')
                   ),
-                  url: R.path(['current', 'url_resolved']),
+                  url: R.either(
+                    R.path(['current', 'url_resolved']),
+                    R.path(['current', 'url'])
+                  ),
                   name: R.path(['current', 'name']),
                   bitrate: R.either(
                     R.path(['current', 'bitrate']),
@@ -94,12 +117,12 @@ const Player = ({
                   ),
                 })(stationController)
               )
+            )
               .then(setFavorites)
               .catch(() => messageUser("Couldn't add favorite"))
           }}
         />
         <Button
-          title="remove from favs"
           disabled={!isFav(stationController.current)}
           text="🗑"
           onClick={() =>
@@ -114,7 +137,7 @@ const Player = ({
         max={10}
         defaultValue={volume * 10}
         onChange={e => {
-          setVolume(e.target.value / 10)
+          setVolume(Number(e.target.value) / 10)
         }}
       />
     </div>

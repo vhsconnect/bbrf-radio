@@ -1,6 +1,18 @@
 import React from 'react'
 
-export default function Button({ alternateColor, disabled, onClick, text }) {
+interface Props {
+  alternateColor?: boolean
+  disabled: boolean
+  onClick: () => void
+  text: string
+}
+
+export default function Button({
+  alternateColor,
+  disabled,
+  onClick,
+  text,
+}: Props) {
   return (
     <button
       style={{
