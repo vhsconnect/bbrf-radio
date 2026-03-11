@@ -1,0 +1,16 @@
+services:
+  bbrf-radio:
+    image: bbrf-radio:latest
+    build: .
+    container_name: bbrf-radio
+    restart: unless-stopped
+    ports:
+      - '4881:4881'
+    volumes:
+      - bbrf-data:/app/data
+    environment:
+      - XDG_CONFIG_HOME=/app/data
+
+volumes:
+  bbrf-data:
+    driver: local

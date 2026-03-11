@@ -26,9 +26,20 @@ To get started, Start up the server, or better yet host it on your network's ras
 { "FADER_VALUE": 25, "PORT": 5555, "ITEM_PER_PAGE": 2000 }
 ```
 
+
+
 ### Try out the project
 
 [![Try with Replit Badge](https://replit.com/badge?caption=Try%20with%20Replit)](https://replit.com/github/vhsconnect/bbrf-radio)
+
+### Usage with docker
+
+Modify ports or environment variables such as FADER_VALUE as needed in the `Dockerfile` or docker compose.
+
+```
+docker compose up -d
+```
+
 
 ### Usage with nixos
 
