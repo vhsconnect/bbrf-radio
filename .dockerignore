@@ -1,0 +1,16 @@
+node_modules/
+.git/
+.github/
+.nix/
+.crush/
+result/
+.envrc
+flake.lock
+*.log
+todo
+scratch
+.eslintrc*
+.prettierrc*
+pages/
+scripts/
+.DS_Store
