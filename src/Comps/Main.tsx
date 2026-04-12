@@ -4,7 +4,7 @@ import { Effect, Option, Schema, pipe } from 'effect'
 import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
-import radioModel from '../utils/radioModel'
+import radioL from '../utils/radioModel'
 import { request } from '../utils/httpHandlers'
 import { radioApi } from '../../server/api/radioBrowser.mjs'
 import { userAgent } from '../../server/userAgent.mjs'
@@ -54,7 +54,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [countrycode, setCountrycode] = React.useState<string>('')
   const [name, setName] = React.useState<string>('')
   const [favorites, setFavorites] = React.useState<RadioCollection>([])
-  const [stationController, setStationController] = React.useState(radioModel())
+  const [stationController, setStationController] = React.useState(radioL())
   const [lockStations, setLockStations] = React.useState<boolean>(false)
   const [currentOffset, setCurrentOffset] = React.useState<number>(0)
   const [radioServer, setRadioServer] = React.useState<
@@ -195,7 +195,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
 
   const api: Api = apiMap[serverMode ? 'server' : 'client']
 
-  const queueStation = R.pipe(stationController.next, setStationController)
+  const queueStation = R.pipe(stationController.push, setStationController)
 
   const setStation = (x: boolean) => (x ? R.identity : queueStation)
 
@@ -388,8 +388,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           removeFromFavorites={removeFromFavorites}
           favorites={favorites}
           backtrackCurrentStation={R.pipe(
-            R.pipe(R.prop('values'), R.last, setDeleteCandidate),
-            stationController.remove,
+            () => setDeleteCandidate(stationController.current),
+            stationController.pop,
             setStationController
           )}
           defaultMessage={defaultMessage}

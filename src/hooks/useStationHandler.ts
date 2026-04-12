@@ -30,7 +30,7 @@ const useStationHandler = ({
   backtrackCurrentStation,
 }: Props) => {
   useEffect(() => {
-    if (stationController.up()) {
+    if (stationController.current) {
       let timeout: number
 
       const volumeElement = document.getElementById(

@@ -29,10 +29,9 @@ export type RadioStream = Schema.Schema.Type<typeof RadioStreamSchema>
 export type RadioApiUpstream = Schema.Schema.Type<typeof RadioApiUpstreamSchema>
 
 export type RadioInterface = {
-  values: Array<RadioStream>
-  last: RadioStream | undefined
   current: RadioStream
-  next: (x: Radio) => RadioInterface
-  remove: () => RadioInterface
-  up: () => boolean
+  previous: RadioStream | undefined
+  hasHistory: boolean
+  push: (x: Radio) => RadioInterface
+  pop: () => RadioInterface
 }
