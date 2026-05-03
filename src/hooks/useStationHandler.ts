@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { combineLatest, fromEvent, interval, type Subscription } from 'rxjs'
+import { type Subscription, combineLatest, fromEvent, interval } from 'rxjs'
 import { map, startWith, takeWhile } from 'rxjs/operators'
 import * as R from 'ramda'
 import type { RadioInterface } from '../types'
