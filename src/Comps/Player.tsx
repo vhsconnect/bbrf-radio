@@ -4,9 +4,12 @@ import { Effect } from 'effect'
 import useStationHandler from '../hooks/useStationHandler'
 import useQueryTrackInfo from '../hooks/useQueryTrackInfo'
 import type { Radio, RadioCollection, RadioInterface } from '../types'
+import { createLogger } from '../utils/debug'
 import Button from './Button'
 import Teleprompt from './Teleprompt'
 import type { Api } from './Main'
+
+const log = createLogger('player')
 
 interface Props {
   stationController: RadioInterface
@@ -75,6 +78,7 @@ const Player = ({
           disabled={!stationController.hasHistory}
           onClick={() => {
             if (stationController.previous) {
+              log.info('backtrack', { from: stationController.current?.name, to: stationController.previous.name })
               setLockStations(true)
               stationController.previous.stream.load()
               setStationController(stationController.previous)
