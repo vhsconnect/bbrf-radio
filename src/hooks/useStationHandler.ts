@@ -76,8 +76,8 @@ const useStationHandler = ({
         next: () => {
           clearTimeout(timeout)
           setLockStations(false)
-          last &&
-            fader.subscribe({
+          if (last) {
+            faderSub = fader.subscribe({
               next([x, y]) {
                 if (R.pipe(R.isNil, R.not)(y)) {
                   current.volume = y as number
@@ -109,6 +109,7 @@ const useStationHandler = ({
         playingSub.unsubscribe()
         errorSub.unsubscribe()
         loadingSub.unsubscribe()
+        faderSub?.unsubscribe()
       }
     }
   }, [stationController])

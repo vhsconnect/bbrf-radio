@@ -18,13 +18,14 @@ const usePickWithKeys = ({
   setSelector,
   setLockStations,
 }: Props) => {
-  // no scroll
   useEffect(() => {
-    document.addEventListener('keydown', e => {
+    const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault()
       }
-    })
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
   }, [])
 
   useEffect(() => {
