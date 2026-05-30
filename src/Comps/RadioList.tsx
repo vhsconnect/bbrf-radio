@@ -4,6 +4,7 @@ import usePickWithKeys from '../hooks/usePickWithKeys'
 import type { RadioCollection, Radio as RadioType } from '../types'
 import Radio from './Radio'
 import type { Api } from './Main'
+import type { ExportHandler } from '../hooks/useExport'
 
 interface Props {
   channels: RadioCollection
@@ -15,6 +16,7 @@ interface Props {
   currentOffset: number
   setCurrentOffset: (x: number) => void
   radioFilter: string
+  exportHandler: ExportHandler | null
 }
 
 const RadioList = ({
@@ -27,6 +29,7 @@ const RadioList = ({
   setCurrentOffset,
   api,
   radioFilter,
+  exportHandler,
 }: Props) => {
   const [selector, setSelector] = useState(0)
   const filteredChannels = channels.filter(
@@ -61,6 +64,7 @@ const RadioList = ({
             currentOffset={currentOffset}
             setCurrentOffset={setCurrentOffset}
             api={api}
+            exportHandler={exportHandler}
           />
         </div>
       ))}

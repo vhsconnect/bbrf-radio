@@ -4,6 +4,7 @@ import { Effect, Option, Schema, pipe } from 'effect'
 import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
+import useExport from '../hooks/useExport'
 import radioL from '../utils/radioModel'
 import { request } from '../utils/httpHandlers'
 import { radioApi } from '../../server/api/radioBrowser.mjs'
@@ -67,6 +68,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [deleteCandidate, setDeleteCandidate] = React.useState<Radio | null>(
     null
   )
+
+  const { exportMode, toggleExportMode, exportHandler } = useExport()
 
   const apiMap = {
     server: {
@@ -356,6 +359,12 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                   .catch(() => messageUser("Couldn't fetch favorties"))
               }}
             />
+            <Button
+              text="export"
+              disabled={false}
+              alternateColor={exportMode}
+              onClick={toggleExportMode}
+            />
           </div>
           <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
             {userAgent.split(' ')[1]}
@@ -416,6 +425,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           currentOffset={currentOffset}
           radioFilter={radioFilter}
           api={api}
+          exportHandler={exportHandler}
         />
         <div className="right-panel">
           {stationController.current && (
