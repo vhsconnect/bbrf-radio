@@ -69,7 +69,6 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     null
   )
 
-  const { exportMode, toggleExportMode, exportHandler } = useExport()
 
   const apiMap = {
     server: {
@@ -310,11 +309,14 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     setStatusStack([defaultMessage])
   }, [radioServer])
 
+
   const removeFromFavorites = (uuid: string) => {
     Effect.runPromise(api.removeFavorite(uuid))
       .then(setFavorites)
       .catch(() => messageUser("Couldn't remove favorite"))
   }
+
+  const { exportMode, toggleExportMode, exportHandler } = useExport(messageUser)
 
   return (
     <div>
