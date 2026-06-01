@@ -69,7 +69,6 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     null
   )
 
-
   const apiMap = {
     server: {
       favorites: () =>
@@ -309,7 +308,6 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     setStatusStack([defaultMessage])
   }, [radioServer])
 
-
   const removeFromFavorites = (uuid: string) => {
     Effect.runPromise(api.removeFavorite(uuid))
       .then(setFavorites)
@@ -364,6 +362,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
             <Button
               text="export"
               disabled={false}
+              extraSyle={{ marginLeft: '10px' }}
               alternateColor={exportMode}
               onClick={toggleExportMode}
             />

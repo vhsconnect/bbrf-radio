@@ -5,6 +5,7 @@ interface Props {
   disabled: boolean
   onClick: () => void
   text: string
+  extraSyle?: React.CSSProperties
 }
 
 export default function Button({
@@ -12,6 +13,7 @@ export default function Button({
   disabled,
   onClick,
   text,
+  extraSyle,
 }: Props) {
   const colorStyle =
     typeof alternateColor === 'string'
@@ -22,7 +24,11 @@ export default function Button({
 
   return (
     <button
-      style={{ cursor: 'pointer', ...colorStyle }}
+      style={{
+        cursor: 'pointer',
+        ...colorStyle,
+        ...(extraSyle ? extraSyle : {}),
+      }}
       disabled={disabled}
       className={disabled ? 'button-disabled' : 'button'}
       onClick={onClick}
