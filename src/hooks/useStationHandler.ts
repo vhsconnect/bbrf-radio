@@ -70,7 +70,12 @@ const useStationHandler = ({
           code: err?.code,
           message: err?.message,
         })
+        clearTimeout(timeout)
         messageUser('faulty station, aborting...')
+        stationController.current.stream.pause()
+        backtrackCurrentStation(stationController)
+        setLockStations(false)
+        playingSub.unsubscribe()
       })
 
       const fromPlaying = fromEvent(current, 'playing')
