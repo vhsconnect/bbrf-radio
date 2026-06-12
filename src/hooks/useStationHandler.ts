@@ -1,8 +1,11 @@
 import { useEffect } from 'react'
-import { combineLatest, fromEvent, interval } from 'rxjs'
+import {  combineLatest, fromEvent, interval } from 'rxjs'
 import { map, startWith, takeWhile } from 'rxjs/operators'
 import * as R from 'ramda'
 import type { RadioInterface } from '../types'
+import { createLogger } from '../utils/debug'
+
+const log = createLogger('handler')
 
 const ABORT_RADIO_INTERVAL = 5000
 
@@ -30,8 +33,16 @@ const useStationHandler = ({
   backtrackCurrentStation,
 }: Props) => {
   useEffect(() => {
-    if (stationController.up()) {
+    if (stationController.current) {
       let timeout: number
+      const stationName = stationController.current.name
+
+      log.info('station changed', {
+        name: stationName,
+        hasPrevious: !!last,
+        volume,
+        msToVolumeRatio,
+      })
 
       const volumeElement = document.getElementById(
         'volume'
@@ -53,6 +64,12 @@ const useStationHandler = ({
       const fader = combineLatest([_fader, fromVolume])
       const fromError = fromEvent(current, 'error')
       const errorSub = fromError.subscribe(() => {
+        const err = (current as HTMLAudioElement & { error?: MediaError }).error
+        log.error('stream error', {
+          name: stationName,
+          code: err?.code,
+          message: err?.message,
+        })
         messageUser('faulty station, aborting...')
       })
 
@@ -62,7 +79,12 @@ const useStationHandler = ({
 
       const loadingSub = fromLoading.subscribe({
         next: () => {
+          log.debug('loadstart', { name: stationName })
           timeout = setTimeout(() => {
+            log.warn('timeout waiting for playback', {
+              name: stationName,
+              waitedMs: ABORT_RADIO_INTERVAL,
+            })
             messageUser('Timed out, aborting...')
             stationController.current.stream.pause()
             backtrackCurrentStation(stationController)
@@ -75,24 +97,36 @@ const useStationHandler = ({
       const playingSub = fromPlaying.subscribe({
         next: () => {
           clearTimeout(timeout)
+          log.info('playing', { name: stationName, crossfade: !!last })
           setLockStations(false)
-          last &&
+          if (last) {
             fader.subscribe({
               next([x, y]) {
                 if (R.pipe(R.isNil, R.not)(y)) {
+                  log.debug('crossfade interrupted by volume slider', {
+                    name: stationName,
+                    sliderVolume: y,
+                  })
                   current.volume = y as number
                   last.volume = 0
                   last.pause()
                   return
                 }
+                log.debug('crossfade step', {
+                  name: stationName,
+                  oldVol: Number(x),
+                  newVol: Number(volume - Number(x)),
+                })
                 last.volume = Number(x)
                 current.volume = Number(volume - Number(x))
                 x === 0 ? last.pause() : null
               },
               complete() {
+                log.info('crossfade complete', { name: stationName })
                 last.pause()
               },
             })
+          }
 
           setPlayerTitle([
             stationController.current.name +
@@ -102,9 +136,11 @@ const useStationHandler = ({
         },
       })
 
+      log.info('calling play()', { name: stationName, src: current.src })
       current.play()
 
       return () => {
+        log.debug('cleanup subscriptions', { name: stationName })
         clearTimeout(timeout)
         playingSub.unsubscribe()
         errorSub.unsubscribe()

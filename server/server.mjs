@@ -303,4 +303,20 @@ const start = async () => {
   }
 }
 
+// Graceful shutdown handler
+const gracefulShutdown = async (signal) => {
+  console.log(`Received ${signal}, shutting down gracefully...`)
+  try {
+    await fastify.close()
+    console.log('Server closed successfully')
+    process.exit(0)
+  } catch (err) {
+    console.error('Error during shutdown:', err)
+    process.exit(1)
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+
 start()

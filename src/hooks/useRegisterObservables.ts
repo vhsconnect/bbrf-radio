@@ -39,15 +39,15 @@ export default ({
       'input'
     )
 
-    tagsObservable
+    const d1 = tagsObservable
       .pipe(debounceTime(1000))
       .subscribe(e => setTag((e.target as HTMLInputElement).value))
 
-    ccObservable
+    const d2 = ccObservable
       .pipe(debounceTime(1000))
       .subscribe(e => setCountrycode((e.target as HTMLInputElement).value))
 
-    nameObservable
+    const d3 = nameObservable
       .pipe(debounceTime(1000))
       .subscribe(e => setName((e.target as HTMLInputElement).value))
 
@@ -91,6 +91,9 @@ export default ({
       s1.unsubscribe()
       s2.unsubscribe()
       s3.unsubscribe()
+      d1.unsubscribe()
+      d2.unsubscribe()
+      d3.unsubscribe()
     }
   }, [])
 }
