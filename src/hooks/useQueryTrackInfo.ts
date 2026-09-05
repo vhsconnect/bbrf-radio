@@ -17,6 +17,9 @@ export default ({
 }: Props) => {
   useEffect(() => {
     let timeoutTime = 10 * 1000
+    // set on cleanup: an in-flight poll from a previous station must not
+    // overwrite the status of the station that is playing now
+    let cancelled = false
 
     const f = () => {
       if (stationController.current) {
@@ -38,7 +41,18 @@ export default ({
 
         const normalize: (x: string | undefined) => string | undefined = R.when(
           R.complement(R.isNil),
-          R.pipe(R.replace(':80', ''), R.replace('https', 'http'))
+          R.pipe(
+            /*
+             * radioL.push appends a ?cachebust query to the stream url while
+             * the listenurl reported by status-json.xsl never has one. Without
+             * stripping queries the source match below fails for every station
+             * whose xsl reports an array of sources (multi-mount icecast), so
+             * their track info would never display.
+             */
+            R.replace(/\?.*/, ''),
+            R.replace(':80', ''),
+            R.replace('https', 'http')
+          )
         )
 
         Promise.allSettled([fetch(maybeXsl(url)), fetch(maybeXsl2(url))])
@@ -75,11 +89,14 @@ export default ({
               R.pipe(
                 x => `${x.artist ? x.artist + ': ' : ''}${x.title}`,
                 Array,
-                setStatusStack
+                (xs: string[]) => {
+                  if (!cancelled) setStatusStack(xs)
+                }
               )
             )
           )
           .catch(() => {
+            if (cancelled) return
             timeoutTime = timeoutTime * 4
             setStatusStack([defaultMessage])
           })
@@ -89,6 +106,7 @@ export default ({
     }
     let timeout = setTimeout(f, timeoutTime)
     return () => {
+      cancelled = true
       setStatusStack([defaultMessage])
       clearTimeout(timeout)
     }
