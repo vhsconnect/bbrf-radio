@@ -6,7 +6,6 @@
   "license": "GPL-2.0-only",
   "private": false,
   "homepage": "https://vhsconnect.github.io/bbrf-radio",
-  "packageManager": "pnpm@10.34.5",
   "type": "module",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
