@@ -11,10 +11,16 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '26'
+          cache: 'pnpm'
 
       - name: Build and prepare files
         run: |
@@ -22,8 +28,8 @@ jobs:
           cp index.html pages/
           cp styles.css pages/
           cp favicon-16x16.png pages/
-          npm install
-          npm run build:static 
+          pnpm install
+          pnpm run build:static 
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
