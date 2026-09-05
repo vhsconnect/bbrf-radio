@@ -5,6 +5,7 @@ import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
 import radioL from '../utils/radioModel'
+import { discoverRadioBrowserApiUrl } from '../utils/radioBrowserDiscovery'
 import { request } from '../utils/httpHandlers'
 import { radioApi } from '../../server/api/radioBrowser.mjs'
 import { userAgent } from '../../server/userAgent.mjs'
@@ -40,11 +41,7 @@ export type Api = {
     currentOffset: number
   ) => Effect.Effect<RadioCollection, UnknownException, never>
   fader: () => Effect.Effect<number, number, never>
-  radioServer: () => Effect.Effect<
-    Option.Option<string>,
-    Option.Option<never>,
-    never
-  >
+  radioServer: () => Effect.Effect<Option.Option<string>, never, never>
   clicked: (uuid: string) => Effect.Effect<unknown, never, never>
 }
 
@@ -120,10 +117,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
               Schema.decodeUnknownPromise(RadioApiUpstreamSchema)
             )
           ),
-          Effect.mapBoth({
-            onSuccess: decoded => Option.some(decoded.server),
-            onFailure: () => Option.none(),
-          })
+          Effect.option,
+          Effect.map(Option.map(decoded => decoded.server))
         ),
       clicked: (uuid: string) =>
         Effect.promise(() => request(`/clicked/${uuid}`)),
@@ -178,15 +173,17 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         ),
       radioServer: () =>
         pipe(
-          Effect.promise(() =>
+          Effect.tryPromise(() =>
             radioBrowserApiUrl
               ? Promise.resolve(radioBrowserApiUrl)
-              : Promise.reject(Error('radio-browser-api url not available'))
+              : /*
+                 * We do the dns over https lookup here again becuase we cannot guarantee
+                 * that it will have resolved by first render.
+                 */
+                discoverRadioBrowserApiUrl()
           ),
-          Effect.mapBoth({
-            onSuccess: Option.some,
-            onFailure: Option.none,
-          })
+          Effect.option,
+          Effect.map(Option.flatMap(Option.fromNullable))
         ),
       clicked: (uuid: string) =>
         Effect.promise(() => radioApi.clickStation(radioBrowserApiUrl, uuid)),
