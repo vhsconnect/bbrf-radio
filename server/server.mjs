@@ -115,7 +115,7 @@ fastify.get('/', async (_, reply) =>
     .headers({ radioBowserServer: server })
     .status(200)
     .type('text/html')
-    .sendFile('./index.html')
+    .sendFile('index.html')
 )
 
 fastify.get('/fader', (_, reply) =>
