@@ -1,36 +1,30 @@
 {
   description = ''Browse, favorite and play online radios in your browser'';
   inputs = {
-    dream2nix.url = "github:nix-community/dream2nix";
+    pnpm2nix.url = "github:FliegendeWurst/pnpm2nix-nzbr";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
-    nixpkgs.follows = "dream2nix/nixpkgs";
   };
   outputs =
     {
       self,
-      dream2nix,
       nixpkgs,
+      pnpm2nix,
       utils,
     }:
     utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = nixpkgs.legacyPackages.${system}.appendOverlays [
+          pnpm2nix.overlays.default
+        ];
         node22 = pkgs.nodejs_22;
         typescript = pkgs.typescript;
       in
       with pkgs;
       {
-        packages.bbrf-radio = dream2nix.lib.evalModules {
-          packageSets.nixpkgs = pkgs;
-          modules = [
-            ./nix/default.nix
-            {
-              paths.projectRoot = ./.;
-              paths.projectRootFile = "flake.nix";
-              paths.package = ./.;
-            }
-          ];
+        packages.bbrf-radio = callPackage ./nix/default.nix {
+          pnpm = pnpm2nix.inputs.nixpkgs.legacyPackages.${system}.pnpm;
         };
         defaultPackage = self.packages."${system}".bbrf-radio;
         nixosModules = rec {
@@ -41,6 +35,7 @@
           buildInputs = [
             node22
             typescript
+            pnpm_10
           ];
         };
       }
