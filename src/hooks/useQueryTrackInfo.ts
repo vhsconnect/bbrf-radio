@@ -81,7 +81,7 @@ export default ({
           )
           .catch(() => {
             timeoutTime = timeoutTime * 4
-            setStatusStack([])
+            setStatusStack([defaultMessage])
           })
       }
       // set  as Interval
