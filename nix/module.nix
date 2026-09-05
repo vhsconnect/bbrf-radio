@@ -101,7 +101,7 @@ in
     (optionalAttrs ((isDarwin system) && (cfg.serveStaticSite)) {
       launchd.user.agents.bbrf = {
         script = ''
-          ${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/lib/node_modules/bbrf-radio/pages ${cfg.staticsiteservedon}
+          ${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/pages ${cfg.staticsiteservedon}
 
         '';
         serviceConfig = {
@@ -145,7 +145,7 @@ in
         serviceConfig = {
           Type = "simple";
           User = cfg.user;
-          ExecStart = "${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/lib/node_modules/bbrf-radio/pages ${builtins.toString cfg.staticSiteServedOn}";
+          ExecStart = "${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/pages ${builtins.toString cfg.staticSiteServedOn}";
         };
         preStart = ''
           SETTINGS_FILE=/home/${cfg.user}/.config/bbrf-radio/settings.json
