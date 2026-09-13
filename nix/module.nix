@@ -17,6 +17,23 @@ let
     ITEMS_PER_PAGE = cfg.itemsPerPage;
   };
   inherit (flake.packages.${pkgs.stdenv.hostPlatform.system}) bbrf-radio;
+
+  # CLI controlling the always-on radio via mpv's IPC socket (fish).
+  radioCli = pkgs.writeScriptBin "radio" (
+    builtins.concatStringsSep "\n" [
+      ''
+        #! ${pkgs.fish}/bin/fish
+        set -q SOCKET; or set SOCKET "${cfg.alwaysOnRadio.socket}"
+        set PORT "${toString cfg.port}"
+        set DEFAULT_STATION "${cfg.alwaysOnRadio.defaultStation}"
+        set CURL "${pkgs.curl}/bin/curl"
+        set JQ "${pkgs.jq}/bin/jq"
+        set SOCAT "${pkgs.socat}/bin/socat"
+        set SORT "${pkgs.coreutils}/bin/sort"
+      ''
+      (builtins.readFile ./radio-cli.fish)
+    ]
+  );
 in
 {
   options.services.bbrf = {
@@ -71,6 +88,41 @@ in
       description = ''
         Port for serving all client build
       '';
+    };
+
+    alwaysOnRadio = {
+      enable = mkEnableOption ''
+        an always-on radio: a muted mpv player started at login, kept alive
+        by systemd and controlled through mpv's IPC socket with the `radio`
+        CLI (on, off, toggle, status, stations, station NAME, pick). The
+        station is looked up by name in the server's favorites, so it must
+        be added to your favorites first. Linux only.
+      '';
+
+      defaultStation = mkOption {
+        type = types.str;
+        description = ''
+          Name of the station (one of your favorites) the always-on radio
+          starts playing.
+        '';
+      };
+
+      socket = mkOption {
+        type = types.str;
+        default = "$XDG_RUNTIME_DIR/radio.sock";
+        description = ''
+          Path of the mpv IPC socket used to control the always-on radio.
+        '';
+      };
+
+      audioOutput = mkOption {
+        type = types.str;
+        default = "pulse";
+        description = ''
+          mpv --ao value. `pulse` works for both PulseAudio and PipeWire
+          (via pipewire-pulse).
+        '';
+      };
     };
 
   };
@@ -156,5 +208,44 @@ in
         '';
       };
     })
+
+    (optionalAttrs (!(isDarwin system)) (mkIf cfg.alwaysOnRadio.enable {
+      # the user service has to survive logout to be really "always on"
+      users.users.${cfg.user}.linger = mkDefault true;
+
+      systemd.user.services.radio = {
+        description = "bbrf always-on radio (muted mpv, IPC-controlled)";
+        wantedBy = [ "default.target" ];
+        wants = [ "pipewire.service" ];
+        after = [ "pipewire.service" ];
+
+        startLimitIntervalSec = 0; # restart forever, really "always on"
+
+        serviceConfig = {
+          Type = "simple";
+          Restart = "always";
+          RestartSec = "5s";
+        };
+
+        script = ''
+          until RADIO_URL=$(${pkgs.curl}/bin/curl -s http://localhost:${toString cfg.port}/favorites | ${pkgs.jq}/bin/jq -e -r --arg NAME "${cfg.alwaysOnRadio.defaultStation}" '.[] | select(.name == $NAME) | .url'); do
+            echo "Waiting for bbrf endpoint..."
+            ${pkgs.coreutils}/bin/sleep 2
+          done
+
+          exec ${pkgs.mpv}/bin/mpv \
+            --no-video \
+            --ao=${cfg.alwaysOnRadio.audioOutput} \
+            --mute=yes \
+            --cache-secs=10 \
+            --audio-client-name=bbrf-radio \
+            --msg-level=all=error \
+            --input-ipc-server="${cfg.alwaysOnRadio.socket}" \
+            "$RADIO_URL"
+        '';
+      };
+
+      environment.systemPackages = [ radioCli ];
+    }))
   ]);
 }
