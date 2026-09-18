@@ -13,9 +13,10 @@
       utils,
     }:
     {
-      # System-independent: nix/module.nix derives the system from
+      # System-independent: the modules derive the system from
       # pkgs.stdenv.hostPlatform, so consumers import
-      # bbrf-radio.nixosModules.bbrf on any system.
+      # bbrf-radio.nixosModules.bbrf (Linux) or
+      # bbrf-radio.darwinModules.bbrf (nix-darwin) on any system.
       nixosModules = rec {
         bbrf = import ./nix/module.nix self;
         bbrf-waybar = import ./nix/waybar-module.nix;
@@ -23,6 +24,10 @@
           bbrf
           bbrf-waybar
         ];
+      };
+      darwinModules = rec {
+        bbrf = import ./nix/darwin-module.nix self;
+        default = bbrf;
       };
     }
     // utils.lib.eachDefaultSystem (
