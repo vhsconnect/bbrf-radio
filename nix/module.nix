@@ -143,7 +143,7 @@ in
 
   config = mkIf cfg.enable (mkMerge [
 
-    (optionalAttrs isDarwin {
+    (mkIf isDarwin {
       launchd.user.agents.bbrf = {
         script = ''
           SETTINGS_FILE=/Users/${cfg.user}/Library/Preferences/bbrf-radio/settings.json
@@ -164,7 +164,7 @@ in
 
     })
 
-    (optionalAttrs (isDarwin && cfg.serveStaticSite) {
+    (mkIf (isDarwin && cfg.serveStaticSite) {
       launchd.user.agents.bbrf = {
         script = ''
           ${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/pages ${cfg.staticsiteservedon}
@@ -180,7 +180,7 @@ in
 
     })
 
-    (optionalAttrs (!isDarwin) {
+    (mkIf (!isDarwin) {
 
       systemd.services.bbrf = {
         description = "bbrf-radio server";
@@ -202,7 +202,7 @@ in
 
     })
 
-    (optionalAttrs (!(isDarwin && cfg.serveStaticSite)) {
+    (mkIf (!(isDarwin && cfg.serveStaticSite)) {
 
       systemd.services.bbrf-static = {
         description = "bbrf-radio static";
@@ -223,7 +223,7 @@ in
       };
     })
 
-    (optionalAttrs (!isDarwin) (mkIf cfg.alwaysOnRadio.enable {
+    (mkIf (!isDarwin) (mkIf cfg.alwaysOnRadio.enable {
       # the user service has to survive logout to be really "always on"
       users.users.${cfg.user}.linger = mkDefault true;
 
