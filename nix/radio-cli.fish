@@ -8,10 +8,12 @@
 #   radio status         show mute state and current station
 #   radio stations       list station names from bbrf favorites
 #   radio station NAME   switch to station NAME (looked up in bbrf favorites)
-#   radio pick           browse stations with rofi and switch to the choice
+#   radio pick           browse stations with the configured picker (rofi by
+#                        default) and switch to the choice
 #
-# SOCKET, PORT, DEFAULT_STATION, CURL, JQ, SOCAT and SORT are prepended
-# by nix/module.nix (services.bbrf.alwaysOnRadio).
+# SOCKET, PORT and DEFAULT_STATION are prepended by nix/radio-cli.nix and can
+# be overridden through the environment. CURL, JQ, SOCAT, SORT and PICKER
+# (services.bbrf.alwaysOnRadio.picker) are baked in at build time.
 
 function requireSocket
     if not test -S $SOCKET
@@ -127,11 +129,11 @@ switch $argv[1]
         switchStation $argv[2]
     case pick
         requireSocket
-        if not type -q rofi
-            echo "radio: rofi not found in PATH" >&2
+        if not type -q -- $PICKER[1]
+            echo "radio: picker not found: $PICKER[1]" >&2
             exit 1
         end
-        set -l choice (stations | $SORT -u | rofi -dmenu -i -matching fuzzy -p "Radio")
+        set -l choice (stations | $SORT -u | $PICKER)
         if test (count $choice) -eq 0
             exit 0
         end

@@ -1,4 +1,4 @@
-flake: system:
+flake:
 {
   config,
   lib,
@@ -10,7 +10,7 @@ with lib;
 
 let
   cfg = config.services.bbrf;
-  isDarwin = system: (system == "x86_64-darwin") || (system == "aarch64-darwin");
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   json = builtins.toJSON {
     PORT = cfg.port;
     FADER_VALUE = cfg.faderValue;
@@ -19,21 +19,14 @@ let
   inherit (flake.packages.${pkgs.stdenv.hostPlatform.system}) bbrf-radio;
 
   # CLI controlling the always-on radio via mpv's IPC socket (fish).
-  radioCli = pkgs.writeScriptBin "radio" (
-    builtins.concatStringsSep "\n" [
-      ''
-        #! ${pkgs.fish}/bin/fish
-        set -q SOCKET; or set SOCKET "${cfg.alwaysOnRadio.socket}"
-        set PORT "${toString cfg.port}"
-        set DEFAULT_STATION "${cfg.alwaysOnRadio.defaultStation}"
-        set CURL "${pkgs.curl}/bin/curl"
-        set JQ "${pkgs.jq}/bin/jq"
-        set SOCAT "${pkgs.socat}/bin/socat"
-        set SORT "${pkgs.coreutils}/bin/sort"
-      ''
-      (builtins.readFile ./radio-cli.fish)
-    ]
-  );
+  # Built by nix/radio-cli.nix (also exposed as the standalone flake
+  # package `radio`) with this host's option values.
+  radioCli = pkgs.callPackage ./radio-cli.nix {
+    port = cfg.port;
+    socket = cfg.alwaysOnRadio.socket;
+    defaultStation = cfg.alwaysOnRadio.defaultStation;
+    picker = cfg.alwaysOnRadio.picker;
+  };
 in
 {
   options.services.bbrf = {
@@ -123,13 +116,34 @@ in
           (via pipewire-pulse).
         '';
       };
+
+      picker = mkOption {
+        type = types.listOf types.str;
+        # keep in sync with the default in nix/radio-cli.nix
+        default = [ "${pkgs.rofi}/bin/rofi" "-dmenu" "-i" "-matching" "fuzzy" "-p" "Radio" ];
+        description = ''
+          Command (with arguments) used by `radio pick` to select a
+          station. Defaults to rofi; e.g. wofi users can set
+          [ "wofi" "--show" "dmenu" ].
+        '';
+      };
+
+      installCli = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Whether to install the `radio` CLI into environment.systemPackages.
+          Disable when you link the standalone `radio` package from this
+          flake instead (installing both collides on bin/radio).
+        '';
+      };
     };
 
   };
 
   config = mkIf cfg.enable (mkMerge [
 
-    (optionalAttrs (isDarwin system) {
+    (optionalAttrs isDarwin {
       launchd.user.agents.bbrf = {
         script = ''
           SETTINGS_FILE=/Users/${cfg.user}/Library/Preferences/bbrf-radio/settings.json
@@ -150,7 +164,7 @@ in
 
     })
 
-    (optionalAttrs ((isDarwin system) && (cfg.serveStaticSite)) {
+    (optionalAttrs (isDarwin && cfg.serveStaticSite) {
       launchd.user.agents.bbrf = {
         script = ''
           ${pkgs.python314}/bin/python -m http.server --directory ${bbrf-radio}/pages ${cfg.staticsiteservedon}
@@ -166,7 +180,7 @@ in
 
     })
 
-    (optionalAttrs (!(isDarwin system)) {
+    (optionalAttrs (!isDarwin) {
 
       systemd.services.bbrf = {
         description = "bbrf-radio server";
@@ -188,7 +202,7 @@ in
 
     })
 
-    (optionalAttrs (!((isDarwin system) && cfg.serveStaticSite)) {
+    (optionalAttrs (!(isDarwin && cfg.serveStaticSite)) {
 
       systemd.services.bbrf-static = {
         description = "bbrf-radio static";
@@ -209,7 +223,7 @@ in
       };
     })
 
-    (optionalAttrs (!(isDarwin system)) (mkIf cfg.alwaysOnRadio.enable {
+    (optionalAttrs (!isDarwin) (mkIf cfg.alwaysOnRadio.enable {
       # the user service has to survive logout to be really "always on"
       users.users.${cfg.user}.linger = mkDefault true;
 
@@ -245,7 +259,7 @@ in
         '';
       };
 
-      environment.systemPackages = [ radioCli ];
+      environment.systemPackages = mkIf cfg.alwaysOnRadio.installCli [ radioCli ];
     }))
   ]);
 }

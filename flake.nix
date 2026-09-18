@@ -12,7 +12,20 @@
       pnpm2nix,
       utils,
     }:
-    utils.lib.eachDefaultSystem (
+    {
+      # System-independent: nix/module.nix derives the system from
+      # pkgs.stdenv.hostPlatform, so consumers import
+      # bbrf-radio.nixosModules.bbrf on any system.
+      nixosModules = rec {
+        bbrf = import ./nix/module.nix self;
+        bbrf-waybar = import ./nix/waybar-module.nix;
+        default = [
+          bbrf
+          bbrf-waybar
+        ];
+      };
+    }
+    // utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system}.appendOverlays [
@@ -23,13 +36,17 @@
       in
       with pkgs;
       {
-        packages.bbrf-radio = callPackage ./nix/default.nix {
-          pnpm = pnpm2nix.inputs.nixpkgs.legacyPackages.${system}.pnpm;
-        };
-        defaultPackage = self.packages."${system}".bbrf-radio;
-        nixosModules = rec {
-          bbrf = import ./nix/module.nix self system;
-          default = bbrf;
+        packages = rec {
+          bbrf-radio = callPackage ./nix/default.nix {
+            pnpm = pnpm2nix.inputs.nixpkgs.legacyPackages.${system}.pnpm;
+          };
+          # Standalone `radio` CLI with the alwaysOnRadio defaults;
+          # override port/socket/defaultStation/picker via .override.
+          radio = callPackage ./nix/radio-cli.nix { };
+          # Standalone waybar status script; override
+          # socket/defaultStation via .override.
+          radio-waybar = callPackage ./nix/radio-waybar.nix { };
+          default = bbrf-radio;
         };
         devShells.default = mkShell {
           buildInputs = [
