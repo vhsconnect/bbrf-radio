@@ -1,4 +1,3 @@
-
 # radio - control the bbrf always-on radio via mpv's IPC interface.
 # Part of bbrf-radio: https://github.com/vhsconnect/bbrf-radio
 #
@@ -93,7 +92,7 @@ function switchStation
     end
 
     # remember the station so `radio status` (and future tools) can show it
-    ipc (printf '{"command":["set_property","user-data/bbrf/name",%s]}' (jsonEscape $name)) > /dev/null
+    ipc (printf '{"command":["set_property","user-data/bbrf/name",%s]}' (jsonEscape $name)) >/dev/null
     echo "radio: now playing $name"
 end
 
@@ -105,20 +104,20 @@ end
 switch $argv[1]
     case on
         requireSocket
-        ipc '{"command":["set_property","mute",false]}' > /dev/null
+        ipc '{"command":["set_property","mute",false]}' >/dev/null
         echo "radio: audible"
     case off
         requireSocket
-        ipc '{"command":["set_property","mute",true]}' > /dev/null
+        ipc '{"command":["set_property","mute",true]}' >/dev/null
         echo "radio: muted"
     case toggle
         requireSocket
         set -l mute (query mute)
         if test "$mute" = true
-            ipc '{"command":["set_property","mute",false]}' > /dev/null
+            ipc '{"command":["set_property","mute",false]}' >/dev/null
             echo "radio: audible"
         else
-            ipc '{"command":["set_property","mute",true]}' > /dev/null
+            ipc '{"command":["set_property","mute",true]}' >/dev/null
             echo "radio: muted"
         end
     case station
@@ -131,6 +130,7 @@ switch $argv[1]
         requireSocket
         if not type -q -- $PICKER[1]
             echo "radio: picker not found: $PICKER[1]" >&2
+            # test
             exit 1
         end
         set -l choice (stations | $SORT -u | $PICKER)
