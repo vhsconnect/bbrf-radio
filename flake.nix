@@ -36,6 +36,8 @@
             node22
             typescript
             pnpm_10
+            beam.packages.erlang_28.erlang
+            beam.packages.erlang_28.elixir
           ];
         };
       }

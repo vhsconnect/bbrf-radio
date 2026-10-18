@@ -19,6 +19,7 @@ Environment:
 - `RADIO_ANALYZER_DB` (`data/radio-analyzer-elixir.db`) SQLite file
 - `FAVORITES_IMPORT_FILE` optional path to a node server `storage.json`; imported only while the favorites table is empty
 - `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000)
+- `BBRF_INGESTION` (1) `1` runs the station poll, track waves and pruning, `0` runs only the api. Any other value stops the boot
 - collector settings: `POLL_MINUTES`, `TRACK_CYCLE_MINUTES`, `PRUNE_HOURS`, `WAVE_CONCURRENCY`, and the rest in `lib/radio_analyzer/`
 
 ## Docker

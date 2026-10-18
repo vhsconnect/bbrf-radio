@@ -14,3 +14,6 @@ scratch
 pages/
 scripts/
 .DS_Store
+server-elixir/_build
+server-elixir/deps
+server-elixir/data

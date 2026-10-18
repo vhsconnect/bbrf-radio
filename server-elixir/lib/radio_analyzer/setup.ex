@@ -6,7 +6,7 @@ defmodule RadioAnalyzer.Setup do
   - apply pending migrations (the clojure original runs migratus the
     same way at startup)
   - import favorites from the bbrf-radio node server's storage.json when
-    FAVORITES_IMPORT_FILE points at one and the favorites table is empty
+    FAVORITES_IMPORT_FILE points at an existing file and the favorites table is empty
   - enable WAL (persistent in the database file, covers every future
     connection)
   - enable `auto_vacuum=INCREMENTAL` so the retention pruner can return
@@ -66,15 +66,13 @@ defmodule RadioAnalyzer.Setup do
   end
 
   defp import_favorites do
-    case System.get_env("FAVORITES_IMPORT_FILE") do
-      nil ->
-        :ok
+    path = System.get_env("FAVORITES_IMPORT_FILE")
 
-      path ->
-        if RadioAnalyzer.Favorites.count() == 0 do
-          count = RadioAnalyzer.Favorites.import_json(path)
-          Logger.info("favorites: imported #{count} from #{path}")
-        end
+    if path && File.regular?(path) && RadioAnalyzer.Favorites.count() == 0 do
+      count = RadioAnalyzer.Favorites.import_json(path)
+      Logger.info("favorites: imported #{count} from #{path}")
     end
+
+    :ok
   end
 end

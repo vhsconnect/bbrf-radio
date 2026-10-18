@@ -11,6 +11,27 @@ services:
     environment:
       - XDG_CONFIG_HOME=/app/data
 
+  bbrf-elixir:
+    image: bbrf-elixir:latest
+    build:
+      context: .
+      dockerfile: server-elixir/Dockerfile
+    container_name: bbrf-elixir
+    restart: unless-stopped
+    # from .env, as in radio-analyzer-elixir; keeps the database owned by this user
+    user: "${HOST_UID:-1000}:${HOST_GID:-100}"
+    ports:
+      - '4882:4881'
+    volumes:
+      # SQLite database, in the host state dir (same convention as radio-analyzer-elixir)
+      - ${STATE_DIR:-${HOME}/.local/state/bbrf-elixir}:/data
+      # read-only view of the node server's favorites, imported once into the empty database
+      - bbrf-data:/import:ro
+    environment:
+      - FAVORITES_IMPORT_FILE=/import/bbrf-radio/storage.json
+      # 1 polls radio-browser for new stations, 0 leaves the catalogue as it is
+      - BBRF_INGESTION=${BBRF_INGESTION:-1}
+
 volumes:
   bbrf-data:
     driver: local
