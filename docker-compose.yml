@@ -29,7 +29,7 @@ services:
       - bbrf-data:/import:ro
     environment:
       - FAVORITES_IMPORT_FILE=/import/bbrf-radio/storage.json
-      # 1 polls radio-browser for new stations, 0 leaves the catalogue as it is
+      # 1 runs the collectors (catalogue sync, recent polls, track waves, prune), 0 runs only the api
       - BBRF_INGESTION=${BBRF_INGESTION:-1}
 
 volumes:

@@ -15,5 +15,9 @@ if config_env() != :test do
     # busy_timeout gives colliding write transactions room to wait
     journal_mode: :wal,
     synchronous: :normal,
-    busy_timeout: 5_000
+    busy_timeout: 5_000,
+    # page cache per connection, in KiB when negative. ecto_sqlite3 defaults
+    # to 64 MB, and every pooled connection that scans the stations table
+    # fills its own copy of pages the OS already caches for the file
+    cache_size: -String.to_integer(System.get_env("DB_CACHE_KB", "8000"))
 end

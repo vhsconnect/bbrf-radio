@@ -4,10 +4,12 @@ defmodule RadioAnalyzer.Scheduler do
   `{module, function, args}` triple) every `interval_ms` milliseconds.
 
   The first tick fires right after startup - like chime's periodic-seq
-  starting at "now", the immediate ingest tick doubles as the initial
+  starting at "now", the immediate catalogue tick does the initial
   station load (a track wave racing an empty stations table just records
   a zero row). The next tick is scheduled only after the previous job
-  returned, so overlapping runs are structurally impossible.
+  returned, so overlapping runs are structurally impossible; it is due
+  `interval_ms` after the previous run started, or right away when that
+  run took longer.
   """
 
   use GenServer
@@ -17,7 +19,7 @@ defmodule RadioAnalyzer.Scheduler do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
   end
 
-  # three instances live in the tree - the supervisor id is the name
+  # one instance per loop lives in the tree - the supervisor id is the name
   def child_spec(opts) do
     %{
       id: Keyword.fetch!(opts, :name),
@@ -39,8 +41,10 @@ defmodule RadioAnalyzer.Scheduler do
 
   @impl true
   def handle_info(:tick, state) do
+    started = System.monotonic_time(:millisecond)
     run(state)
-    Process.send_after(self(), :tick, state.interval_ms)
+    elapsed = System.monotonic_time(:millisecond) - started
+    Process.send_after(self(), :tick, max(state.interval_ms - elapsed, 0))
     {:noreply, state}
   end
 

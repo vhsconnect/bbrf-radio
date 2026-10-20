@@ -7,9 +7,13 @@ defmodule RadioAnalyzer.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps()
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   # the application is a long-running node: collectors, plus the HTTP server
   # for the bbrf frontend; run it with `mix run --no-halt`

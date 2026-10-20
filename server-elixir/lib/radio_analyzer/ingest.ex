@@ -1,16 +1,23 @@
 defmodule RadioAnalyzer.Ingest do
   @moduledoc """
   Polls the 'recent' radio-browser endpoints and upserts stations into
-  SQLite, recording per-poll stats. The upsert mirrors the clojure
-  original: `last_changed_at` only moves when the station's `changeuuid`
-  actually changed since the last time we stored it.
+  SQLite, recording per-poll stats. Each endpoint runs on its own
+  schedule:
+
+    * `poll_changes/0` (`stations/lastchange`) is the incremental feed
+      between full catalogue syncs (`RadioAnalyzer.Catalogue`): stations
+      added or edited upstream show up here first
+    * `poll_clicks/0` (`stations/lastclick`) only refreshes check and click
+      data for the stations people listen to; once the catalogue is
+      complete it brings in no new stations, so it runs far less often
+
+  The upsert mirrors the clojure original: `last_changed_at` only moves
+  when the station's `changeuuid` actually changed since the last time
+  we stored it.
   """
 
   alias RadioAnalyzer.{Env, IngestStat, RadioBrowser, Repo}
   require Logger
-
-  # the endpoints we poll for 'recent' stations
-  @recent_endpoints ["stations/lastchange", "stations/lastclick"]
 
   @station_columns [
     "changeuuid",
@@ -52,7 +59,9 @@ defmodule RadioAnalyzer.Ingest do
     "has_extended_info"
   ]
 
-  @placeholders Enum.map_join(0..(length(@station_columns) + 1), ", ", fn _ -> "?" end)
+  @insert_columns @station_columns ++ ["first_seen_at", "last_changed_at", "synced_at"]
+
+  @row_placeholders "(" <> Enum.map_join(@insert_columns, ", ", fn _ -> "?" end) <> ")"
 
   @conflict_set Enum.map_join(
                   List.delete(@station_columns, "stationuuid"),
@@ -60,22 +69,48 @@ defmodule RadioAnalyzer.Ingest do
                   &"#{&1} = excluded.#{&1}"
                 )
 
-  @upsert_sql """
-  INSERT INTO stations (#{Enum.join(@station_columns, ", ")}, first_seen_at, last_changed_at)
-  VALUES (#{@placeholders})
+  # SET expressions read the pre-update row, so every CASE compares the
+  # stored changeuuid with the incoming one. An edited station (new
+  # changeuuid) gets its failure history cleared and is due right away,
+  # since its stream url may have changed; a station a full sync had
+  # marked 'removed' comes back as 'unknown'.
+  @upsert_conflict """
   ON CONFLICT(stationuuid) DO UPDATE SET
     #{@conflict_set},
     last_changed_at = CASE
       WHEN stations.changeuuid IS NOT excluded.changeuuid THEN excluded.last_changed_at
-      ELSE stations.last_changed_at END
+      ELSE stations.last_changed_at END,
+    synced_at = COALESCE(excluded.synced_at, stations.synced_at),
+    meta_state = CASE
+      WHEN stations.meta_state = 'removed' THEN 'unknown'
+      WHEN stations.changeuuid IS NOT excluded.changeuuid
+           AND stations.meta_state IN ('dead', 'no-metadata') THEN 'unknown'
+      ELSE stations.meta_state END,
+    meta_fail_count = CASE
+      WHEN stations.changeuuid IS NOT excluded.changeuuid THEN 0
+      ELSE stations.meta_fail_count END,
+    meta_idle_count = CASE
+      WHEN stations.changeuuid IS NOT excluded.changeuuid THEN 0
+      ELSE stations.meta_idle_count END,
+    meta_next_check_at = CASE
+      WHEN stations.meta_state = 'removed'
+           OR stations.changeuuid IS NOT excluded.changeuuid THEN NULL
+      ELSE stations.meta_next_check_at END
   """
+
+  # rows per INSERT; 400 * 39 columns stays under sqlite's 32766 host parameters
+  @upsert_chunk 400
 
   def poll_limit, do: Env.int("POLL_LIMIT", 1000)
 
-  @doc "Poll both 'recent' endpoints. Returns %{endpoint => stats}; never throws."
-  def poll_recent do
-    Map.new(@recent_endpoints, fn endpoint -> {endpoint, poll_endpoint(endpoint)} end)
-  end
+  def changes_interval_minutes, do: Env.int("CHANGES_POLL_MINUTES", 10)
+  def clicks_interval_minutes, do: Env.int("CLICKS_POLL_MINUTES", 360)
+
+  @doc "Poll the stations added or edited lately. Returns the stats; never throws."
+  def poll_changes, do: poll_endpoint("stations/lastchange")
+
+  @doc "Poll the stations clicked lately. Returns the stats; never throws."
+  def poll_clicks, do: poll_endpoint("stations/lastclick")
 
   @doc """
   Poll one recent endpoint, upsert the returned stations and record
@@ -125,9 +160,18 @@ defmodule RadioAnalyzer.Ingest do
   Returns `%{inserted: n, updated: n, unchanged: n}` - 'updated' means
   the station's changeuuid changed since we last saw it, 'unchanged'
   means we stored it before with the same changeuuid.
+
+  `synced_at:` stamps the rows as seen by the full sync that started then.
   """
-  def upsert_stations(stations) do
+  def upsert_stations(stations, opts \\ []) do
     now = now_iso()
+    synced_at = Keyword.get(opts, :synced_at)
+
+    stations =
+      stations
+      |> Enum.reject(&is_nil(&1["stationuuid"]))
+      |> Enum.uniq_by(& &1["stationuuid"])
+
     existing = existing_changeuuids(Enum.map(stations, & &1["stationuuid"]))
 
     counts =
@@ -135,7 +179,7 @@ defmodule RadioAnalyzer.Ingest do
         prev = Map.get(existing, station["stationuuid"])
 
         cond do
-          is_nil(prev) -> :inserted
+          not Map.has_key?(existing, station["stationuuid"]) -> :inserted
           prev != station["changeuuid"] -> :updated
           true -> :unchanged
         end
@@ -143,11 +187,15 @@ defmodule RadioAnalyzer.Ingest do
 
     {:ok, _} =
       Repo.transaction(fn ->
-        Enum.each(stations, fn station ->
+        stations
+        |> Enum.chunk_every(@upsert_chunk)
+        |> Enum.each(fn chunk ->
           params =
-            Enum.map(@station_columns, &bind(station[&1])) ++ [now, now]
+            Enum.flat_map(chunk, fn station ->
+              Enum.map(@station_columns, &bind(station[&1])) ++ [now, now, synced_at]
+            end)
 
-          Repo.query!(@upsert_sql, params)
+          Repo.query!(upsert_sql(length(chunk)), params)
         end)
       end)
 
@@ -156,6 +204,14 @@ defmodule RadioAnalyzer.Ingest do
       updated: Map.get(counts, :updated, 0),
       unchanged: Map.get(counts, :unchanged, 0)
     }
+  end
+
+  defp upsert_sql(rows) do
+    """
+    INSERT INTO stations (#{Enum.join(@insert_columns, ", ")})
+    VALUES #{Enum.map_join(1..rows, ", ", fn _ -> @row_placeholders end)}
+    #{@upsert_conflict}
+    """
   end
 
   @doc "Insert one bookkeeping row for a poll (also used by the wave/prune jobs)."

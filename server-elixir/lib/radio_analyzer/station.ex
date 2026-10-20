@@ -4,12 +4,15 @@ defmodule RadioAnalyzer.Station do
   as returned by the radio-browser API plus bookkeeping timestamps and
   the metadata-classification columns the wave poller maintains:
 
-    meta_state        'unknown' | 'ok' | 'no-metadata' | 'dead'
-    meta_checked_at   bumped every time a wave touches the station -
-                      drives the fair least-recently-checked ordering
-    meta_fail_count   consecutive fetch failures; 'dead' at 3
-    meta_last_title   last observed raw_title - observations are only
-                      stored when the title differs from this
+    meta_state          'unknown' | 'ok' | 'no-metadata' | 'dead' | 'removed'
+    meta_checked_at     last time a wave checked the station
+    meta_next_check_at  when the station is due for its next check; NULL is now
+    meta_fail_count     consecutive fetch failures; 'dead' at 3
+    meta_idle_count     consecutive checks without a new track or without metadata
+    meta_last_title     last observed raw_title - observations are only
+                        stored when the title differs from this
+    meta_source         method that last produced a title: 'icecast' or 'icy'
+    synced_at           start of the last full catalogue sync that saw the station
   """
 
   use Ecto.Schema
@@ -59,5 +62,9 @@ defmodule RadioAnalyzer.Station do
     field(:meta_checked_at, :string)
     field(:meta_fail_count, :integer)
     field(:meta_last_title, :string)
+    field(:meta_next_check_at, :string)
+    field(:meta_idle_count, :integer)
+    field(:synced_at, :string)
+    field(:meta_source, :string)
   end
 end
