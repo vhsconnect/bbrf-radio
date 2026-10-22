@@ -8,8 +8,18 @@ defmodule BBRF.HistoryTest do
     Metatable.reset_db!()
 
     Stations.upsert([
-      Metatable.station(%{"stationuuid" => "station-1", "name" => "Example FM"}),
-      Metatable.station(%{"stationuuid" => "station-2", "name" => "Other FM"})
+      Metatable.station(%{
+        "stationuuid" => "station-1",
+        "name" => "Example FM",
+        "countrycode" => "SE",
+        "tags" => "pop, r&b,Soul"
+      }),
+      Metatable.station(%{
+        "stationuuid" => "station-2",
+        "name" => "Another FM",
+        "countrycode" => "DE",
+        "tags" => "metal,pop rock"
+      })
     ])
 
     Repo.insert_all(TrackObservation, [
@@ -87,6 +97,60 @@ defmodule BBRF.HistoryTest do
       Repo.query!("DELETE FROM track_observations WHERE title = 'Halo'")
 
       assert uuids(History.search("halo", 50, 0)) == ["station-2"]
+    end
+  end
+
+  describe "tracks/4" do
+    defp titles(tracks), do: Enum.map(tracks, & &1["title"])
+
+    test "orders by recency" do
+      assert titles(History.tracks([], "recent", 50, 0)) == ["Love On Top", "Shine", "Halo"]
+    end
+
+    test "orders by station name, most recent first within a station" do
+      assert titles(History.tracks([], "station", 50, 0)) == ["Shine", "Love On Top", "Halo"]
+    end
+
+    test "filters by countrycode ignoring case" do
+      assert titles(History.tracks([countrycode: "se"], "recent", 50, 0)) == [
+               "Love On Top",
+               "Halo"
+             ]
+    end
+
+    test "filters by whole tags ignoring case" do
+      assert titles(History.tracks([tag: "SOUL"], "recent", 50, 0)) == ["Love On Top", "Halo"]
+      assert titles(History.tracks([tag: "r&b"], "recent", 50, 0)) == ["Love On Top", "Halo"]
+      assert titles(History.tracks([tag: "pop rock"], "recent", 50, 0)) == ["Shine"]
+      assert History.tracks([tag: "rock"], "recent", 50, 0) == []
+    end
+
+    test "combines filters and ignores empty ones" do
+      assert History.tracks([countrycode: "DE", tag: "soul"], "recent", 50, 0) == []
+
+      assert titles(History.tracks([countrycode: "", tag: nil], "recent", 50, 0)) ==
+               ["Love On Top", "Shine", "Halo"]
+    end
+
+    test "pages with limit and offset" do
+      assert titles(History.tracks([], "recent", 1, 1)) == ["Shine"]
+    end
+
+    test "joins the station that played the track" do
+      assert [track | _] = History.tracks([], "recent", 50, 0)
+
+      assert %{
+               "id" => _,
+               "observed_at" => "2026-10-19T12:10:00.000000Z",
+               "raw_title" => "Beyoncé - Love On Top",
+               "artist" => "Beyoncé",
+               "station" => %{
+                 "stationuuid" => "station-1",
+                 "name" => "Example FM",
+                 "countrycode" => "SE",
+                 "tags" => "pop, r&b,Soul"
+               }
+             } = track
     end
   end
 end

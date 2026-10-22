@@ -6,8 +6,9 @@ defmodule BBRF.API.Router do
 
   Radio-browser calls go through `BBRF.RadioBrowser`, the same
   client the ingester uses. Favorites live in SQLite (`BBRF.Favorites`).
-  `/bytrack` has no node counterpart: it searches the ingested track
-  history (`BBRF.History`) and pages like the other `/by*` routes.
+  `/bytrack` and `/tracks` have no node counterpart: they read the
+  ingested track history (`BBRF.History`) and page like the other
+  `/by*` routes.
   """
 
   use Plug.Router
@@ -50,6 +51,21 @@ defmodule BBRF.API.Router do
 
   get "/bytrack/:query" do
     paged(conn, fn offset, limit -> History.search(query, limit, offset) end)
+  end
+
+  get "/tracks" do
+    conn = fetch_query_params(conn)
+    order = Map.get(conn.query_params, "order", "recent")
+
+    if order in History.track_orders() do
+      filters = [countrycode: conn.query_params["countrycode"], tag: conn.query_params["tag"]]
+      paged(conn, fn offset, limit -> History.tracks(filters, order, limit, offset) end)
+    else
+      json(conn, 400, %{
+        error: "unknown order #{order}",
+        message: "order must be one of #{Enum.join(History.track_orders(), ", ")}"
+      })
+    end
   end
 
   get "/clicked/:uuid" do

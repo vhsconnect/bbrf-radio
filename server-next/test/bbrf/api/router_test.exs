@@ -38,6 +38,8 @@ defmodule BBRF.API.RouterTest do
 
   defp json(conn), do: Jason.decode!(conn.resp_body)
 
+  defp call_get(path), do: json(call(:get, path))
+
   test "GET /fader reports the default fader value" do
     conn = call(:get, "/fader")
 
@@ -120,6 +122,45 @@ defmodule BBRF.API.RouterTest do
 
     assert [%{"stationuuid" => "station-1"}] = json(call(:get, "/bytrack/thunder?offset=1"))
     assert json(call(:get, "/bytrack/thunder?offset=2")) == []
+  end
+
+  test "GET /tracks filters, orders and pages plays joined with their station" do
+    Metatable.reset_db!()
+
+    Stations.upsert([
+      Metatable.station(%{"countrycode" => "SE", "tags" => "jazz"}),
+      Metatable.station(%{
+        "stationuuid" => "station-2",
+        "name" => "Another FM",
+        "countrycode" => "DE"
+      })
+    ])
+
+    Repo.insert_all(TrackObservation, [
+      Metatable.observation(%{title: "First"}),
+      Metatable.observation(%{
+        stationuuid: "station-2",
+        observed_at: "2026-10-19T12:05:00.000000Z",
+        title: "Second"
+      })
+    ])
+
+    titles = fn path -> path |> call_get() |> Enum.map(& &1["title"]) end
+
+    assert titles.("/tracks") == ["Second", "First"]
+    assert titles.("/tracks?order=station") == ["Second", "First"]
+    assert titles.("/tracks?countrycode=SE") == ["First"]
+    assert titles.("/tracks?tag=jazz&countrycode=se") == ["First"]
+
+    assert [%{"station" => %{"name" => "Another FM"}} | _] = call_get("/tracks")
+
+    conn = call(:get, "/tracks?order=random")
+    assert conn.status == 400
+
+    System.put_env("ITEMS_PER_PAGE", "1")
+    on_exit(fn -> System.delete_env("ITEMS_PER_PAGE") end)
+
+    assert titles.("/tracks?offset=1") == ["First"]
   end
 
   test "import_json copies favorites from a node storage.json and skips duplicates" do
