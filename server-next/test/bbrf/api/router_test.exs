@@ -3,8 +3,9 @@ defmodule BBRF.API.RouterTest do
   import Plug.Test
   import Plug.Conn
 
-  alias BBRF.{Favorites, Repo}
+  alias BBRF.{Favorites, Metatable, Repo, TrackObservation}
   alias BBRF.API.Router
+  alias BBRF.Ingester.Stations
 
   @station %{
     "stationuuid" => "abc-123",
@@ -83,6 +84,42 @@ defmodule BBRF.API.RouterTest do
     call(:post, "/write/addStation/abc-123", Jason.encode!(@station))
 
     assert json(call(:get, "/favorites")) == [@station]
+  end
+
+  test "GET /bytrack/:query finds the stations that played a matching track" do
+    Metatable.reset_db!()
+
+    Stations.upsert([
+      Metatable.station(),
+      Metatable.station(%{"stationuuid" => "station-2", "name" => "Other FM"})
+    ])
+
+    Repo.insert_all(TrackObservation, [
+      Metatable.observation(%{
+        raw_title: "AC/DC - Thunderstruck",
+        artist: "AC/DC",
+        title: "Thunderstruck"
+      }),
+      Metatable.observation(%{
+        stationuuid: "station-2",
+        observed_at: "2026-10-19T12:05:00.000000Z",
+        raw_title: "AC/DC - Thunderstruck",
+        artist: "AC/DC",
+        title: "Thunderstruck"
+      })
+    ])
+
+    assert [
+             %{"stationuuid" => "station-2"},
+             %{"stationuuid" => "station-1", "name" => "Example FM"}
+           ] =
+             json(call(:get, "/bytrack/AC%2FDC"))
+
+    System.put_env("ITEMS_PER_PAGE", "1")
+    on_exit(fn -> System.delete_env("ITEMS_PER_PAGE") end)
+
+    assert [%{"stationuuid" => "station-1"}] = json(call(:get, "/bytrack/thunder?offset=1"))
+    assert json(call(:get, "/bytrack/thunder?offset=2")) == []
   end
 
   test "import_json copies favorites from a node storage.json and skips duplicates" do

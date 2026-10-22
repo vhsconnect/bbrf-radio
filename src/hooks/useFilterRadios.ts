@@ -8,6 +8,7 @@ interface Props {
   tagsInput: React.RefObject<HTMLInputElement>
   ccInput: React.RefObject<HTMLInputElement>
   nameInput: React.RefObject<HTMLInputElement>
+  trackInput: React.RefObject<HTMLInputElement>
 }
 
 const useFilterRadios = ({
@@ -16,6 +17,7 @@ const useFilterRadios = ({
   tagsInput,
   ccInput,
   nameInput,
+  trackInput,
 }: Props) => {
   useEffect(() => {
     const viaInputElment = fromEvent(document, 'keydown').pipe(
@@ -38,6 +40,7 @@ const useFilterRadios = ({
         tagsInput.current?.blur()
         ccInput.current?.blur()
         nameInput.current?.blur()
+        trackInput.current?.blur()
       })
 
     const docSub = viaDocument

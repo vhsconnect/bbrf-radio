@@ -6,12 +6,14 @@ defmodule BBRF.API.Router do
 
   Radio-browser calls go through `BBRF.RadioBrowser`, the same
   client the ingester uses. Favorites live in SQLite (`BBRF.Favorites`).
+  `/bytrack` has no node counterpart: it searches the ingested track
+  history (`BBRF.History`) and pages like the other `/by*` routes.
   """
 
   use Plug.Router
 
   require Logger
-  alias BBRF.{Env, Favorites, RadioBrowser}
+  alias BBRF.{Env, Favorites, History, RadioBrowser}
 
   @static_files ["index.html", "index.js", "styles.css", "favicon-16x16.png"]
 
@@ -46,6 +48,10 @@ defmodule BBRF.API.Router do
     search(conn, "stations/byname/#{segment(name)}")
   end
 
+  get "/bytrack/:query" do
+    paged(conn, fn offset, limit -> History.search(query, limit, offset) end)
+  end
+
   get "/clicked/:uuid" do
     respond(conn, fn -> RadioBrowser.get_json("url/#{segment(uuid)}") end)
   end
@@ -74,19 +80,23 @@ defmodule BBRF.API.Router do
   end
 
   defp search(conn, endpoint) do
-    conn = fetch_query_params(conn)
-    offset = page_offset(conn.query_params)
-    limit = Env.int("ITEMS_PER_PAGE", 5000)
-
-    respond(conn, fn ->
-      RadioBrowser.get_json(endpoint, offset: offset * limit, limit: limit)
+    paged(conn, fn offset, limit ->
+      RadioBrowser.get_json(endpoint, offset: offset, limit: limit)
     end)
+  end
+
+  defp paged(conn, fetch) do
+    conn = fetch_query_params(conn)
+    limit = Env.int("ITEMS_PER_PAGE", 5000)
+    offset = page_offset(conn.query_params) * limit
+
+    respond(conn, fn -> fetch.(offset, limit) end)
   end
 
   defp page_offset(params) do
     case Integer.parse(Map.get(params, "offset", "0")) do
-      {n, _} -> n
-      :error -> 0
+      {n, _} when n > 0 -> n
+      _ -> 0
     end
   end
 

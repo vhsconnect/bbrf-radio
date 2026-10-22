@@ -27,6 +27,8 @@ interface Props {
   radioBrowserApiUrl: string | null
 }
 
+export type SearchField = 'tag' | 'countrycode' | 'name' | 'track'
+
 export type Api = {
   favorites: () => Effect.Effect<RadioCollection, UnknownException, never>
   addFavorite: (
@@ -36,7 +38,7 @@ export type Api = {
     uuid: string
   ) => Effect.Effect<RadioCollection, UnknownException, never>
   searchField: (
-    searchField: string,
+    searchField: SearchField,
     value: string,
     currentOffset: number
   ) => Effect.Effect<RadioCollection, UnknownException, never>
@@ -50,6 +52,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [tag, setTag] = React.useState<string>('')
   const [countrycode, setCountrycode] = React.useState<string>('')
   const [name, setName] = React.useState<string>('')
+  const [track, setTrack] = React.useState<string>('')
   const [favorites, setFavorites] = React.useState<RadioCollection>([])
   const [stationController, setStationController] = React.useState(radioL())
   const [lockStations, setLockStations] = React.useState<boolean>(false)
@@ -88,14 +91,16 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           })
         ),
       searchField: (
-        searchField: string,
+        searchField: SearchField,
         value: string,
         currentOffset: number
       ) =>
         Effect.tryPromise(() =>
-          request(`/by${searchField}/${value}?offset=${currentOffset}`).then(
-            Schema.decodeUnknownPromise(RadioCollectionSchema)
-          )
+          request(
+            `/by${searchField}/${encodeURIComponent(
+              value
+            )}?offset=${currentOffset}`
+          ).then(Schema.decodeUnknownPromise(RadioCollectionSchema))
         ),
       addFavorite: (radioPayload: Radio) =>
         Effect.tryPromise(() =>
@@ -132,7 +137,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           Effect.mapError(() => DEFAULT_FADER_VALUE)
         ),
       searchField: (
-        searchField: string,
+        searchField: SearchField,
         value: string,
         currentOffset: number
       ) => {
@@ -158,7 +163,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                 currentOffset,
                 DEFAULT_RESULT_LIMIT
               )
-            : Promise.reject('unreacheable error')
+            : // UNSUPPORTED
+              Promise.resolve([])
 
         return Effect.tryPromise(() =>
           f.then(Schema.decodeUnknownPromise(RadioCollectionSchema))
@@ -208,11 +214,13 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const tagsInput = React.useRef(null)
   const ccInput = React.useRef(null)
   const nameInput = React.useRef(null)
+  const trackInput = React.useRef(null)
 
   useRegisterObservables({
     setTag,
     setCountrycode,
     setName,
+    setTrack,
     setFavorites,
     setChannels,
     messageUser,
@@ -225,21 +233,28 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     tagsInput,
     ccInput,
     nameInput,
+    trackInput,
   })
+
+  const activeSearch = ():
+    | { searchField: SearchField; value: string }
+    | undefined =>
+    tag
+      ? { searchField: 'tag', value: tag }
+      : countrycode
+      ? { searchField: 'countrycode', value: countrycode }
+      : name
+      ? { searchField: 'name', value: name }
+      : track
+      ? { searchField: 'track', value: track }
+      : undefined
 
   React.useEffect(() => {
     messageUser('fetching...')
-    const searchField = tag
-      ? 'tag'
-      : countrycode
-      ? 'countrycode'
-      : name
-      ? 'name'
-      : undefined
-    const value = tag || countrycode || name
-    if (searchField) {
+    const search = activeSearch()
+    if (search) {
       setCurrentOffset(0)
-      Effect.runPromise(api.searchField(searchField, value, 0))
+      Effect.runPromise(api.searchField(search.searchField, search.value, 0))
         .then(setChannels)
         .then(() => {
           window.scrollTo({ top: 1, behavior: 'smooth' })
@@ -249,21 +264,15 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           messageUser('Something went wrong! upstream might be down')
         )
     }
-  }, [tag, countrycode, name])
+  }, [tag, countrycode, name, track])
 
   React.useEffect(() => {
-    const searchField = tag
-      ? 'tag'
-      : countrycode
-      ? 'countrycode'
-      : name
-      ? 'name'
-      : undefined
-    const value = tag || countrycode || name
-    // don't trigger on offset reset
-    if (searchField && currentOffset) {
+    const search = activeSearch()
+    if (search && currentOffset) {
       messageUser('fetching...')
-      Effect.runPromise(api.searchField(searchField, value, currentOffset))
+      Effect.runPromise(
+        api.searchField(search.searchField, search.value, currentOffset)
+      )
         .then(
           R.ifElse(
             R.isEmpty,
@@ -336,6 +345,15 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
               id="name"
               placeholder="by name"
             />
+            {serverMode && (
+              <input
+                ref={trackInput}
+                className="input-fields"
+                type="text"
+                id="track"
+                placeholder="by artist/track"
+              />
+            )}
             <Button
               text="favs"
               disabled={false}
@@ -346,6 +364,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                       setCountrycode('')
                       setTag('')
                       setName('')
+                      setTrack('')
                     })
                   )
                   .then(setChannels)
