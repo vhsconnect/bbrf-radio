@@ -55,16 +55,23 @@ defmodule BBRF.API.Router do
 
   get "/tracks" do
     conn = fetch_query_params(conn)
-    order = Map.get(conn.query_params, "order", "recent")
+    params = conn.query_params
+    sort = Map.get(params, "sort", "played")
+    dir = Map.get(params, "dir", "desc")
 
-    if order in History.track_orders() do
-      filters = [countrycode: conn.query_params["countrycode"], tag: conn.query_params["tag"]]
-      paged(conn, fn offset, limit -> History.tracks(filters, order, limit, offset) end)
-    else
-      json(conn, 400, %{
-        error: "unknown order #{order}",
-        message: "order must be one of #{Enum.join(History.track_orders(), ", ")}"
-      })
+    cond do
+      sort not in History.track_sorts() ->
+        bad_param(conn, "sort", sort, History.track_sorts())
+
+      dir not in History.track_directions() ->
+        bad_param(conn, "dir", dir, History.track_directions())
+
+      true ->
+        filters = for key <- ~w(countrycode tag station q)a, do: {key, params[to_string(key)]}
+
+        paged(conn, Env.int("TRACKS_PER_PAGE", 200), fn offset, limit ->
+          History.tracks(filters, sort, dir, limit, offset)
+        end)
     end
   end
 
@@ -101,9 +108,10 @@ defmodule BBRF.API.Router do
     end)
   end
 
-  defp paged(conn, fetch) do
+  defp paged(conn, fetch), do: paged(conn, Env.int("ITEMS_PER_PAGE", 5000), fetch)
+
+  defp paged(conn, limit, fetch) do
     conn = fetch_query_params(conn)
-    limit = Env.int("ITEMS_PER_PAGE", 5000)
     offset = page_offset(conn.query_params) * limit
 
     respond(conn, fn -> fetch.(offset, limit) end)
@@ -114,6 +122,13 @@ defmodule BBRF.API.Router do
       {n, _} when n > 0 -> n
       _ -> 0
     end
+  end
+
+  defp bad_param(conn, name, value, allowed) do
+    json(conn, 400, %{
+      error: "unknown #{name} #{value}",
+      message: "#{name} must be one of #{Enum.join(allowed, ", ")}"
+    })
   end
 
   defp segment(value), do: URI.encode(value, &URI.char_unreserved?/1)

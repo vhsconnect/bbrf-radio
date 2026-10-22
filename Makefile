@@ -6,7 +6,7 @@
 #   make dev-ingester  install deps, then the server with only the ingester
 #   make dev           same as dev-all
 #   make server        only the server, no dependency install
-#   make frontend      only the esbuild watcher, writing ./index.js
+#   make frontend      only the esbuild watcher, writing ./index.js and reloading open pages on rebuild
 #   make test          the server's test suite
 #   make status        where the ingester stands, read from the database (DB=path for another one)
 #   make status-watch  the same, refreshed every 10 seconds

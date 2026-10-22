@@ -20,23 +20,22 @@ defmodule BBRF.History do
     "tags"
   ]
 
-  @track_orders %{
-    "recent" => "o.observed_at DESC, o.id DESC",
-    # stationuuid keeps same-named stations from interleaving
-    "station" => "s.name COLLATE NOCASE, s.stationuuid, o.observed_at DESC, o.id DESC"
-  }
+  @track_sorts ~w(played country station)
+  @track_directions ~w(asc desc)
 
-  def track_orders, do: Map.keys(@track_orders)
+  def track_sorts, do: @track_sorts
+  def track_directions, do: @track_directions
 
   @doc """
   Plays joined with the station that played them, ordered by one of
-  `track_orders/0`. `filters` narrows them to a `:countrycode` and to
-  stations carrying a `:tag`, both ignoring case; nil or empty values
-  do not filter. Plays on stations missing from the catalogue are left
-  out.
+  `track_sorts/0` in one of `track_directions/0`. `filters` narrows them
+  to a `:countrycode`, to stations carrying a `:tag`, to stations whose
+  name contains `:station`, and to plays whose artist/title match `:q`
+  the way `search/3` does; nil or empty values do not filter. Plays on
+  stations missing from the catalogue are left out.
   """
-  @spec tracks(keyword(), String.t(), pos_integer(), non_neg_integer()) :: [map()]
-  def tracks(filters, order, limit, offset) do
+  @spec tracks(keyword(), String.t(), String.t(), pos_integer(), non_neg_integer()) :: [map()]
+  def tracks(filters, sort, dir, limit, offset) do
     {where, params} = track_filters(filters)
 
     %{rows: rows} =
@@ -47,7 +46,7 @@ defmodule BBRF.History do
           FROM track_observations o
           JOIN stations s ON s.stationuuid = o.stationuuid
          #{where}
-         ORDER BY #{Map.fetch!(@track_orders, order)}
+         ORDER BY #{track_order(sort, dir)}
          LIMIT ? OFFSET ?
         """,
         params ++ [limit, offset]
@@ -65,6 +64,19 @@ defmodule BBRF.History do
     end)
   end
 
+  defp track_order("played", dir) when dir in @track_directions,
+    do: "o.observed_at #{dir}, o.id #{dir}"
+
+  # some stations store their countrycode lowercase or empty; the empty
+  # ones go last either way
+  defp track_order("country", dir) when dir in @track_directions,
+    do:
+      "coalesce(s.countrycode, '') = '', upper(s.countrycode) #{dir}, o.observed_at DESC, o.id DESC"
+
+  # stationuuid keeps same-named stations from interleaving
+  defp track_order("station", dir) when dir in @track_directions,
+    do: "s.name COLLATE NOCASE #{dir}, s.stationuuid, o.observed_at DESC, o.id DESC"
+
   defp track_filters(filters) do
     conditions =
       filters
@@ -77,18 +89,29 @@ defmodule BBRF.History do
 
       _ ->
         {sql, params} = Enum.unzip(conditions)
-        {"WHERE " <> Enum.join(sql, " AND "), params}
+        {"WHERE " <> Enum.join(sql, " AND "), Enum.concat(params)}
     end
   end
 
   defp track_condition({:countrycode, code}),
-    do: {"s.countrycode = ?", String.upcase(code)}
+    do: {"upper(s.countrycode) = upper(?)", [String.trim(code)]}
 
-  # tags is a comma-separated list, matched as whole tags
+  # tags is a comma-separated list, matched as whole tags. sqlite's
+  # lower() only folds ASCII, so both sides go through it
   defp track_condition({:tag, tag}),
     do:
-      {"instr(',' || lower(replace(s.tags, ', ', ',')) || ',', ?) > 0",
-       ",#{tag |> String.trim() |> String.downcase()},"}
+      {"instr(',' || lower(replace(s.tags, ', ', ',')) || ',', lower(?)) > 0",
+       [",#{String.trim(tag)},"]}
+
+  defp track_condition({:station, name}),
+    do: {"instr(lower(s.name), lower(?)) > 0", [String.trim(name)]}
+
+  defp track_condition({:q, query}) do
+    case match_expression(query) do
+      nil -> {"0", []}
+      match -> {"o.id IN (SELECT rowid FROM track_search WHERE track_search MATCH ?)", [match]}
+    end
+  end
 
   @doc """
   Stations that played a track whose artist/title match every word of

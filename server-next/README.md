@@ -27,7 +27,7 @@ Environment:
 - `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`). Any other value stops the boot
 - `BBRF_DB` (`data/bbrf.sqlite`) SQLite file
 - `DB_POOL_SIZE` (5) SQLite connections; `DB_CACHE_KB` (8000) page cache per connection, kept small since the OS already caches the file
-- api: `PORT` (4881); `STATIC_DIR` (`static`) directory holding `index.html`, `index.js`, `styles.css`, `favicon-16x16.png`; `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000)
+- api: `PORT` (4881); `STATIC_DIR` (`static`) directory holding `index.html`, `index.js`, `styles.css`, `favicon-16x16.png`; `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000), `TRACKS_PER_PAGE` (200) for `/tracks`
 - `FAVORITES_IMPORT_FILE` optional path to a node server `storage.json`; imported only while the favorites table is empty
 - `RADIO_BROWSER_BASE_URL` pins a radio-browser server; unset, a mirror is picked from `all.api.radio-browser.info`
 - ingester:

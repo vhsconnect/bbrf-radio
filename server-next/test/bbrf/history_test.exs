@@ -100,44 +100,84 @@ defmodule BBRF.HistoryTest do
     end
   end
 
-  describe "tracks/4" do
+  describe "tracks/5" do
     defp titles(tracks), do: Enum.map(tracks, & &1["title"])
 
-    test "orders by recency" do
-      assert titles(History.tracks([], "recent", 50, 0)) == ["Love On Top", "Shine", "Halo"]
+    defp sorted(sort, dir), do: titles(History.tracks([], sort, dir, 50, 0))
+
+    defp filtered(filters), do: titles(History.tracks(filters, "played", "desc", 50, 0))
+
+    test "sorts by when the track was played" do
+      assert sorted("played", "desc") == ["Love On Top", "Shine", "Halo"]
+      assert sorted("played", "asc") == ["Halo", "Shine", "Love On Top"]
     end
 
-    test "orders by station name, most recent first within a station" do
-      assert titles(History.tracks([], "station", 50, 0)) == ["Shine", "Love On Top", "Halo"]
+    test "sorts by country, most recent first within a country" do
+      assert sorted("country", "asc") == ["Shine", "Love On Top", "Halo"]
+      assert sorted("country", "desc") == ["Love On Top", "Halo", "Shine"]
+    end
+
+    test "sorts by station name, most recent first within a station" do
+      assert sorted("station", "asc") == ["Shine", "Love On Top", "Halo"]
+      assert sorted("station", "desc") == ["Love On Top", "Halo", "Shine"]
     end
 
     test "filters by countrycode ignoring case" do
-      assert titles(History.tracks([countrycode: "se"], "recent", 50, 0)) == [
+      assert filtered(countrycode: "se") == ["Love On Top", "Halo"]
+    end
+
+    test "sorts and filters stations with lowercase or empty countrycodes" do
+      Stations.upsert([
+        Metatable.station(%{"stationuuid" => "station-3", "countrycode" => "fr"}),
+        Metatable.station(%{"stationuuid" => "station-4", "countrycode" => ""})
+      ])
+
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{stationuuid: "station-3", title: "Bonjour"}),
+        Metatable.observation(%{stationuuid: "station-4", title: "Silence"})
+      ])
+
+      assert sorted("country", "asc") == ["Shine", "Bonjour", "Love On Top", "Halo", "Silence"]
+      assert sorted("country", "desc") == ["Love On Top", "Halo", "Bonjour", "Shine", "Silence"]
+      assert filtered(countrycode: "FR") == ["Bonjour"]
+    end
+
+    test "filters by whole tags ignoring case" do
+      assert filtered(tag: "SOUL") == ["Love On Top", "Halo"]
+      assert filtered(tag: "r&b") == ["Love On Top", "Halo"]
+      assert filtered(tag: "pop rock") == ["Shine"]
+      assert filtered(tag: "rock") == []
+    end
+
+    test "filters by part of the station name ignoring case" do
+      assert filtered(station: "EXAMPLE") == ["Love On Top", "Halo"]
+      assert filtered(station: " another ") == ["Shine"]
+      assert filtered(station: "fm") == ["Love On Top", "Shine", "Halo"]
+      assert filtered(station: "%") == []
+    end
+
+    test "filters by artist and title like search/3" do
+      assert filtered(q: "beyon") == ["Love On Top", "Halo"]
+      assert filtered(q: "halo shi") == ["Shine"]
+      assert filtered(q: "  -- ") == []
+    end
+
+    test "combines filters and ignores empty ones" do
+      assert filtered(countrycode: "DE", tag: "soul") == []
+
+      assert filtered(countrycode: "", tag: nil, station: "", q: nil) == [
                "Love On Top",
+               "Shine",
                "Halo"
              ]
     end
 
-    test "filters by whole tags ignoring case" do
-      assert titles(History.tracks([tag: "SOUL"], "recent", 50, 0)) == ["Love On Top", "Halo"]
-      assert titles(History.tracks([tag: "r&b"], "recent", 50, 0)) == ["Love On Top", "Halo"]
-      assert titles(History.tracks([tag: "pop rock"], "recent", 50, 0)) == ["Shine"]
-      assert History.tracks([tag: "rock"], "recent", 50, 0) == []
-    end
-
-    test "combines filters and ignores empty ones" do
-      assert History.tracks([countrycode: "DE", tag: "soul"], "recent", 50, 0) == []
-
-      assert titles(History.tracks([countrycode: "", tag: nil], "recent", 50, 0)) ==
-               ["Love On Top", "Shine", "Halo"]
-    end
-
     test "pages with limit and offset" do
-      assert titles(History.tracks([], "recent", 1, 1)) == ["Shine"]
+      assert titles(History.tracks([], "played", "desc", 1, 1)) == ["Shine"]
     end
 
     test "joins the station that played the track" do
-      assert [track | _] = History.tracks([], "recent", 50, 0)
+      assert [track | _] = History.tracks([], "played", "desc", 50, 0)
 
       assert %{
                "id" => _,

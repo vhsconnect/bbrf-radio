@@ -13,7 +13,7 @@
     "start": "pnpm run build && pnpm run app",
     "dev": "RADIO_DEBUG=1 node --watch server/server.mjs & pnpm run hot",
     "dev:static": "pnpm run hot:static & python -m http.server --directory pages 8040",
-    "hot": "esbuild src/Comps/App.tsx --bundle --loader:.mjs=js --outfile=./index.js --watch=forever",
+    "hot": "node scripts/dev.mjs",
     "hot:static": "cp index.html pages/ && cp styles.css pages/ && esbuild src/Comps/App.Client.tsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./pages/index.js --watch=forever ",
     "build": "esbuild src/Comps/App.tsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./index.js",
     "build:static": "esbuild src/Comps/App.Client.tsx --bundle --define:process.env.NODE_ENV=\"'production'\" --loader:.mjs=js --minify --outfile=./pages/index.js && cp index.html pages/ && cp styles.css pages/",

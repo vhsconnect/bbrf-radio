@@ -62,6 +62,11 @@ export type Track = Schema.Schema.Type<typeof TrackSchema>
 
 export type Tracklisting = Schema.Schema.Type<typeof TracklistingSchema>
 
+export type TrackSort = {
+  column: 'played' | 'country'
+  dir: 'asc' | 'desc'
+}
+
 export type RadioApiUpstream = Schema.Schema.Type<typeof RadioApiUpstreamSchema>
 
 export type RadioInterface = {
