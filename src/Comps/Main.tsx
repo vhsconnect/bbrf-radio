@@ -4,6 +4,7 @@ import { Effect, Option, Schema, pipe } from 'effect'
 import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
+import usePagination from '../hooks/usePagination'
 import radioL from '../utils/radioModel'
 import { discoverRadioBrowserApiUrl } from '../utils/radioBrowserDiscovery'
 import { request } from '../utils/httpHandlers'
@@ -17,7 +18,10 @@ import DeleteFaultyStation from './DeleteFaultyStation'
 import Teleprompt from './Teleprompt'
 import Player from './Player'
 import Button from './Button'
+import Toggle from './Toggle'
 import RadioList from './RadioList'
+import Tracklist from './Tracklist'
+import { metatable as tracklistStub } from './Tracklist.stub'
 
 const DEFAULT_FADER_VALUE = 25
 const DEFAULT_RESULT_LIMIT = 2000
@@ -28,6 +32,13 @@ interface Props {
 }
 
 export type SearchField = 'tag' | 'countrycode' | 'name' | 'track'
+
+export type Mode = 'radio' | 'tracks'
+
+const MODES = [
+  { value: 'radio', text: 'radio' },
+  { value: 'tracks', text: 'tracks' },
+] as const
 
 export type Api = {
   favorites: () => Effect.Effect<RadioCollection, UnknownException, never>
@@ -56,7 +67,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [favorites, setFavorites] = React.useState<RadioCollection>([])
   const [stationController, setStationController] = React.useState(radioL())
   const [lockStations, setLockStations] = React.useState<boolean>(false)
-  const [currentOffset, setCurrentOffset] = React.useState<number>(0)
+  const [mode, setMode] = React.useState<Mode>('radio')
   const [radioServer, setRadioServer] = React.useState<
     string | undefined | null
   >('')
@@ -249,44 +260,18 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
       ? { searchField: 'track', value: track }
       : undefined
 
-  React.useEffect(() => {
-    messageUser('fetching...')
-    const search = activeSearch()
-    if (search) {
-      setCurrentOffset(0)
-      Effect.runPromise(api.searchField(search.searchField, search.value, 0))
-        .then(setChannels)
-        .then(() => {
-          window.scrollTo({ top: 1, behavior: 'smooth' })
-        })
-        .then(() => messageUser('done'))
-        .catch(() =>
-          messageUser('Something went wrong! upstream might be down')
-        )
-    }
-  }, [tag, countrycode, name, track])
+  const search = activeSearch()
 
-  React.useEffect(() => {
-    const search = activeSearch()
-    if (search && currentOffset) {
-      messageUser('fetching...')
-      Effect.runPromise(
-        api.searchField(search.searchField, search.value, currentOffset)
-      )
-        .then(
-          R.ifElse(
-            R.isEmpty,
-            () => messageUser('all radios have been fetched'),
-            R.pipe(R.concat<Radio>(channels), setChannels, () =>
-              messageUser('done')
-            )
-          )
-        )
-        .catch(() =>
-          messageUser('Something went wrong! upstream might be down')
-        )
-    }
-  }, [currentOffset])
+  const { currentOffset, setCurrentOffset } = usePagination({
+    fetchPage:
+      search &&
+      ((offset: number) =>
+        api.searchField(search.searchField, search.value, offset)),
+    resetOn: [tag, countrycode, name, track],
+    setItems: setChannels,
+    messageUser,
+    label: 'radios',
+  })
 
   React.useEffect(() => {
     Effect.runPromise(
@@ -372,6 +357,9 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                   .catch(() => messageUser("Couldn't fetch favorties"))
               }}
             />
+            {serverMode && (
+              <Toggle options={MODES} value={mode} onChange={setMode} />
+            )}
           </div>
           <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
             {userAgent.split(' ')[1]}
@@ -419,20 +407,31 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         />
       </div>
       <div className="under-player">
-        <RadioList
-          channels={channels}
-          isFavsList={R.pipe(
-            R.reject(R.isEmpty),
-            R.isEmpty
-          )([name, countrycode, tag])}
-          lockStations={lockStations}
-          setStationController={setStation(lockStations)}
-          setLockStations={setLockStations}
-          setCurrentOffset={setCurrentOffset}
-          currentOffset={currentOffset}
-          radioFilter={radioFilter}
-          api={api}
-        />
+        {mode === 'tracks' ? (
+          <Tracklist
+            tracks={tracklistStub.tracklisting}
+            lockStations={lockStations}
+            setStationController={setStation(lockStations)}
+            setLockStations={setLockStations}
+            radioFilter={radioFilter}
+            api={api}
+          />
+        ) : (
+          <RadioList
+            channels={channels}
+            isFavsList={R.pipe(
+              R.reject(R.isEmpty),
+              R.isEmpty
+            )([name, countrycode, tag])}
+            lockStations={lockStations}
+            setStationController={setStation(lockStations)}
+            setLockStations={setLockStations}
+            setCurrentOffset={setCurrentOffset}
+            currentOffset={currentOffset}
+            radioFilter={radioFilter}
+            api={api}
+          />
+        )}
         <div className="right-panel">
           {stationController.current && (
             <Flag countrycode={stationController.current?.countrycode} />
