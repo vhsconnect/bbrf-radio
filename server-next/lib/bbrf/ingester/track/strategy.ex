@@ -42,8 +42,7 @@ defmodule BBRF.Ingester.Track.Strategy do
           fail_count: non_neg_integer(),
           idle_count: non_neg_integer(),
           last_title: String.t() | nil,
-          clickcount: non_neg_integer(),
-          favorite: boolean()
+          clickcount: non_neg_integer()
         }
 
   @typedoc """
@@ -132,19 +131,13 @@ defmodule BBRF.Ingester.Track.Strategy do
         fail_count: s.meta_fail_count,
         idle_count: s.meta_idle_count,
         last_title: s.meta_last_title,
-        clickcount: fragment("COALESCE(?, 0)", s.clickcount),
-        favorite:
-          fragment("EXISTS (SELECT 1 FROM favorites f WHERE f.stationuuid = ?)", s.stationuuid)
+        clickcount: fragment("COALESCE(?, 0)", s.clickcount)
       }
     )
   end
 
   @spec load(Ecto.Query.t()) :: [candidate()]
-  def load(query) do
-    query
-    |> Repo.all()
-    |> Enum.map(&%{&1 | favorite: &1.favorite == 1})
-  end
+  def load(query), do: Repo.all(query)
 
   @doc "How many stations a `candidates/0` query covers."
   @spec count(Ecto.Query.t()) :: non_neg_integer()

@@ -14,6 +14,16 @@ if config_env() != :test do
       other -> raise ArgumentError, "JOURNAL_MODE must be delete or wal, got #{inspect(other)}"
     end
 
+  role =
+    case System.get_env("BBRF_ROLE", "all") do
+      "hub" -> :hub
+      "ingest" -> :ingest
+      "all" -> :all
+      other -> raise ArgumentError, "BBRF_ROLE must be hub, ingest or all, got #{inspect(other)}"
+    end
+
+  config :bbrf, role: role
+
   File.mkdir_p(Path.dirname(Path.expand(db_path)))
 
   config :bbrf, BBRF.Repo,

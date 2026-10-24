@@ -7,10 +7,9 @@ defmodule BBRF.Ingester.Track.Strategy.Adaptive do
       same title, or none     -> backs off 5 -> 10 -> 20 min
       no metadata, failure    -> `BBRF.Ingester.Track.Backoff`
 
-  The ok intervals are doubled for stations that are neither a favorite
-  nor popular, and stations read over ICY are checked at most every
-  `icy_interval_minutes` unless they are a favorite, since every ICY
-  check streams audio.
+  The ok intervals are doubled for stations that are not popular, and
+  stations read over ICY are checked at most every `icy_interval_minutes`,
+  since every ICY check streams audio.
 
   A wave takes the due stations with a known method first, ok ones
   leading, then at most `discovery_per_wave` due stations whose method is
@@ -100,10 +99,12 @@ defmodule BBRF.Ingester.Track.Strategy.Adaptive do
     do: scaled(station, state, step(@idle_minutes, state.meta_idle_count), config)
 
   defp scaled(station, state, minutes, config) do
-    priority? = station.favorite or station.clickcount >= config.popular_clickcount
-    minutes = if priority?, do: minutes, else: minutes * @long_tail_factor
+    minutes =
+      if station.clickcount >= config.popular_clickcount,
+        do: minutes,
+        else: minutes * @long_tail_factor
 
-    if state.meta_source == "icy" and not station.favorite,
+    if state.meta_source == "icy",
       do: max(minutes, config.icy_interval_minutes),
       else: minutes
   end

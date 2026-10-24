@@ -30,8 +30,7 @@ defmodule BBRF.Metatable do
         fail_count: 0,
         idle_count: 0,
         last_title: nil,
-        clickcount: 0,
-        favorite: false
+        clickcount: 0
       },
       overrides
     )

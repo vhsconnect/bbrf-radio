@@ -1,7 +1,7 @@
 defmodule BBRF.Ingester.Track.Strategy.AdaptiveTest do
   use ExUnit.Case, async: false
 
-  alias BBRF.{Favorites, Metatable, Repo}
+  alias BBRF.{Metatable, Repo}
   alias BBRF.Ingester.{Stations, Track}
   alias BBRF.Ingester.Track.Strategy.Adaptive
 
@@ -82,17 +82,15 @@ defmodule BBRF.Ingester.Track.Strategy.AdaptiveTest do
       assert uuids(Adaptive.select(Metatable.now(), 10, @config)) == ["fine"]
     end
 
-    test "loads favorites and clickcounts" do
+    test "loads clickcounts" do
       Stations.upsert([
-        Metatable.station(%{"stationuuid" => "favorite"}),
+        Metatable.station(%{"stationuuid" => "quiet"}),
         Metatable.station(%{"stationuuid" => "popular", "clickcount" => 500})
       ])
 
-      Favorites.add(%{"stationuuid" => "favorite"})
-
       assert Adaptive.select(Metatable.now(), 10, @config)
-             |> Map.new(&{&1.stationuuid, {&1.favorite, &1.clickcount}}) ==
-               %{"favorite" => {true, 0}, "popular" => {false, 500}}
+             |> Map.new(&{&1.stationuuid, &1.clickcount}) ==
+               %{"quiet" => 0, "popular" => 500}
     end
   end
 
@@ -110,7 +108,7 @@ defmodule BBRF.Ingester.Track.Strategy.AdaptiveTest do
       assert minutes == [5, 10, 20, 20]
     end
 
-    test "stations that are neither favorite nor popular refresh at half the rate" do
+    test "stations that are not popular refresh at half the rate" do
       long_tail = Metatable.candidate(%{clickcount: 3})
 
       assert due_in_minutes(long_tail, {:changed, "t", %{}}) == 6
@@ -125,12 +123,6 @@ defmodule BBRF.Ingester.Track.Strategy.AdaptiveTest do
     test "ICY stations are checked at most every icy_interval_minutes" do
       assert due_in_minutes(popular(), {:changed, "t", %{}}, "icy") == 60
       assert due_in_minutes(popular(%{meta_state: "ok", meta_source: "icy"}), :idle) == 60
-    end
-
-    test "favorites read over ICY keep the normal intervals" do
-      favorite = Metatable.candidate(%{favorite: true})
-
-      assert due_in_minutes(favorite, {:changed, "t", %{}}, "icy") == 3
     end
   end
 end

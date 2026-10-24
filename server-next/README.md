@@ -24,7 +24,8 @@ The database lives in `~/.local/state/bbrf/db.sqlite`.
 
 Environment:
 
-- `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`). Any other value stops the boot
+- `BBRF_ROLE` (`all`) `all` runs both components on one database; `hub` serves the api and never ingests; `ingest` runs the ingester, the api optional. Any other value stops the boot
+- `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`), on top of the role. Any other value stops the boot
 - `BBRF_DB` (`data/bbrf.sqlite`) SQLite file
 - `DB_POOL_SIZE` (5) SQLite connections; `DB_CACHE_KB` (8000) page cache per connection, kept small since the OS already caches the file
 - api: `PORT` (4881); `STATIC_DIR` (`static`) directory holding `index.html`, `index.js`, `styles.css`, `favicon-16x16.png`; `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000), `TRACKS_PER_PAGE` (200) for `/tracks`
@@ -38,7 +39,7 @@ Environment:
   - `TRACK_CYCLE_MINUTES` (1), `WAVE_DEADLINE_SECONDS` (60), `WAVE_CONCURRENCY` (56), `WAVE_MAX_STATIONS` (10000) track waves
   - `TRACK_STRATEGY` (`full-sweep`) how waves cycle through the stations, `adaptive` or `full-sweep` (below). Any other value stops the boot
   - `full-sweep` options: `SWEEP_CYCLE_MINUTES` (60) how long one pass over the rotation should take; `SWEEP_RETRIES_PER_WAVE` (500) back-off retries per wave
-  - `adaptive` options: `DISCOVERY_PER_WAVE` (500) stations without a known method probed per wave, which bounds the cpu a backlog of them costs; `ICY_INTERVAL_MINUTES` (60) shortest interval between checks of a station read over ICY, favorites excepted; `POPULAR_CLICKCOUNT` (20) stations below it that are not favorites refresh at half the rate
+  - `adaptive` options: `DISCOVERY_PER_WAVE` (500) stations without a known method probed per wave, which bounds the cpu a backlog of them costs; `ICY_INTERVAL_MINUTES` (60) shortest interval between checks of a station read over ICY; `POPULAR_CLICKCOUNT` (20) stations below it refresh at half the rate
   - `POLL_LIMIT`, `PRUNE_HOURS`, `RETENTION_DAYS`, `REPORT_SECONDS`
 
 ## Ingester
@@ -56,7 +57,7 @@ A strategy (`lib/bbrf/ingester/track/strategy.ex`) decides which stations go int
 Whatever the strategy, a station whose last check failed or found no metadata backs off (`lib/bbrf/ingester/track/backoff.ex`): failures retry after 15 min, doubling up to 30 days (`dead` after 3 in a row), no metadata after 7 days, then every 30.
 
 - **`full-sweep`** (default): rotates through the stations that read fine, least recently checked first. Each wave takes rotation size / `SWEEP_CYCLE_MINUTES` stations, so each is visited once per cycle whatever it plays, plus up to `SWEEP_RETRIES_PER_WAVE` back-off retries that are due. At 60 min the ICY traffic is about the same as adaptive's
-- **`adaptive`**: every station has its own due time, moved by what each check finds: a new track in 3 min, the same track backs off to 20 min. Long-tail stations refresh at half the rate and ICY stations at most every `ICY_INTERVAL_MINUTES`, favorites excepted. Stations with a known method go first (ok ones leading), then up to `DISCOVERY_PER_WAVE` stations still being classified, never-checked first
+- **`adaptive`**: every station has its own due time, moved by what each check finds: a new track in 3 min, the same track backs off to 20 min. Long-tail stations refresh at half the rate and ICY stations at most every `ICY_INTERVAL_MINUTES`. Stations with a known method go first (ok ones leading), then up to `DISCOVERY_PER_WAVE` stations still being classified, never-checked first
 
 Switching strategies keeps every station's state and back-off. `full-sweep` does not move the due times of stations that read fine, so after a stretch of it `adaptive` finds those overdue and catches up over the following waves.
 

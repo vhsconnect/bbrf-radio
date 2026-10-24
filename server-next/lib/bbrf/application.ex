@@ -1,10 +1,11 @@
 defmodule BBRF.Application do
   @moduledoc """
   Starts the shared database (`BBRF.Repo`, then `BBRF.Setup` for pragmas
-  and migrations), then the components switched on:
+  and migrations), then the components the node's `BBRF.Role` runs and
+  the switches leave on:
 
     * `BBRF.API` - BBRF_API (default 1)
-    * `BBRF.Ingester` - BBRF_INGESTER (default 1)
+    * `BBRF.Ingester` - BBRF_INGESTER (default 1), never on a hub
 
   Each switch is `1` or `0`; anything else stops the boot. The `:api` and
   `:ingester` app env keys switch a component off whatever the env says
@@ -13,14 +14,17 @@ defmodule BBRF.Application do
 
   use Application
   require Logger
-  alias BBRF.{API, Env, Ingester, Setup}
+  alias BBRF.{API, Env, Ingester, Role, Setup}
   alias BBRF.Ingester.Log
   alias BBRF.Ingester.Track.Strategy
 
   @impl true
   def start(_type, _args) do
-    api? = enabled?(:api, "BBRF_API")
-    ingester? = enabled?(:ingester, "BBRF_INGESTER")
+    role = Role.current()
+
+    %{api: api?, ingester: ingester?} =
+      Role.components(role, enabled?(:api, "BBRF_API"), enabled?(:ingester, "BBRF_INGESTER"))
+
     strategy = if ingester?, do: Strategy.from_env()
 
     if ingester?, do: Log.attach()
@@ -34,7 +38,8 @@ defmodule BBRF.Application do
 
     Logger.info("""
     bbrf started
-      - db: #{Keyword.get(Application.get_env(:bbrf, BBRF.Repo, []), :database)}
+      - role: #{role}
+      - db:#{Keyword.get(Application.get_env(:bbrf, BBRF.Repo, []), :database)}
       - #{if api?, do: API.describe(), else: "api off"}
       - #{if ingester?, do: Ingester.describe(strategy), else: "ingester off"}
     """)
