@@ -411,6 +411,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                       setTag('')
                       setName('')
                       setTrack('')
+                      setMode('radio')
                     })
                   )
                   .then(setChannels)

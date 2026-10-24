@@ -175,6 +175,48 @@ button {
   display: flex;
 }
 
+/* dot spacing matches GRID_CELL in withDraggable.tsx so snapped stations land on the dots */
+.favs-grid {
+  flex: 1;
+  position: relative;
+  background-image: radial-gradient(
+    circle,
+    rgba(127, 255, 212, 0.3) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+  background-position: -8px -8px;
+}
+
+.favs-grid div,
+.favs-grid span {
+  background-color: transparent;
+}
+
+.favs-grid button {
+  max-width: 176px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* disabled buttons swallow mousedown, which would block dragging while a station loads */
+.favs-grid button:disabled {
+  pointer-events: none;
+}
+
+.favs-grid .draggable {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z);
+}
+
+.favs-grid .react-draggable-dragging {
+  z-index: 2147483647;
+  cursor: grabbing;
+}
+
 .right-panel {
   display: flex;
   flex-direction: column;

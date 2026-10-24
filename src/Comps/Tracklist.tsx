@@ -137,13 +137,15 @@ const Tracklist = ({
           ))}
         </tbody>
       </table>
-      <NextPageTarget
-        observerId="tracklist-end"
-        info={tracks.length}
-        paginationTarget={tracks.length > 0}
-        currentOffset={currentOffset}
-        setCurrentOffset={setCurrentOffset}
-      />
+      {!radioFilter && (
+        <NextPageTarget
+          observerId="tracklist-end"
+          info={tracks.length}
+          paginationTarget={tracks.length > 0}
+          currentOffset={currentOffset}
+          setCurrentOffset={setCurrentOffset}
+        />
+      )}
     </div>
   )
 }
