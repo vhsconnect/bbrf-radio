@@ -24,7 +24,12 @@ The database lives in `~/.local/state/bbrf/db.sqlite`.
 
 Environment:
 
-- `BBRF_ROLE` (`all`) `all` runs both components on one database; `hub` serves the api and never ingests; `ingest` runs the ingester, the api optional. Any other value stops the boot
+- `BBRF_ROLE` (`all`) `all` runs both components on one database; `hub` serves the api and never ingests, its track history synced from an ingest node; `ingest` runs the ingester, the api optional. Every role's database has the same schema. Any other value stops the boot
+- sync, over Erlang distribution (the node runs with `--name`/`--sname`); see `BBRF.Sync`:
+  - `SYNC_HUB_NODE` ingest only: the hub node to push to, e.g. `bbrf_hub@192.168.50.121`; unset, nothing is synced
+  - `SYNC_INTERVAL_HOURS` (24) ingest only: time from one successful sync to the next, checked hourly
+  - `SYNC_INGEST_NODE` hub only: the one node allowed to push; unset, every push is refused
+  - on a hub, `RETENTION_DAYS` is how much history the hub keeps (30 is about 2-3 GB), pruned every `PRUNE_HOURS`
 - `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`), on top of the role. Any other value stops the boot
 - `BBRF_DB` (`data/bbrf.sqlite`) SQLite file
 - `DB_POOL_SIZE` (5) SQLite connections; `DB_CACHE_KB` (8000) page cache per connection, kept small since the OS already caches the file
@@ -73,7 +78,7 @@ The database is mounted from `${STATE_DIR:-~/.local/state/bbrf}`.
 
 ## Layout
 
-- `lib/bbrf/` shared: `application.ex` (starts the components), `repo.ex`, `setup.ex` (pragmas, migrations, favorites import), `env.ex`, `radio_browser.ex`, `favorites.ex` and the schemas
+- `lib/bbrf/` shared: `application.ex` (starts the components), `repo.ex`, `setup.ex` (pragmas, migrations, favorites import), `role.ex`, `sync.ex` and `sync/receiver.ex` (ingest to hub), `env.ex`, `radio_browser.ex`, `favorites.ex` and the schemas
 - `lib/bbrf/api/` the api: `router.ex`, static bundle and JSON API
 - `lib/bbrf/ingester/` the ingester: `catalogue.ex`, `recent_polls.ex`, `stations.ex` (the upsert), `track.ex` and `track/` (fetching, back-off, strategies), `scheduler.ex`, `report.ex`
 - `priv/repo/migrations/` schema, applied at boot

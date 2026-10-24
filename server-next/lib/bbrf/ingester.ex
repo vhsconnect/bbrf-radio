@@ -50,12 +50,17 @@ defmodule BBRF.Ingester do
        label: "wave",
        interval_ms: Track.wave_interval_minutes() * 60_000,
        job: {Track, :poll_wave, [strategy]}},
-      {Scheduler,
-       name: BBRF.Ingester.Scheduler.Prune,
-       label: "prune",
-       interval_ms: prune_hours() * 3_600_000,
-       job: {Track, :prune_observations, []}}
+      prune_child()
     ]
+  end
+
+  @doc "The retention loop; a hub runs it too, to keep its own window of history."
+  def prune_child do
+    {Scheduler,
+     name: BBRF.Ingester.Scheduler.Prune,
+     label: "prune",
+     interval_ms: prune_hours() * 3_600_000,
+     job: {Track, :prune_observations, []}}
   end
 
   def describe(strategy) do

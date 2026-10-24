@@ -18,7 +18,7 @@ defmodule BBRF.API.Router do
   require Logger
   import Ecto.Query, only: [from: 2]
 
-  alias BBRF.{Env, Favorites, History, RadioBrowser, Station}
+  alias BBRF.{Env, Favorites, History, RadioBrowser, Repo, Station}
   alias BBRF.Ingester.Track
 
   @static_files ["index.html", "index.js", "styles.css", "favicon-16x16.png"]
@@ -147,7 +147,7 @@ defmodule BBRF.API.Router do
         stream_url: fragment("COALESCE(NULLIF(?, ''), ?)", s.url_resolved, s.url)
       }
     )
-    |> History.repo().one()
+    |> Repo.one()
     |> case do
       nil -> :unknown_station
       station -> Track.fetch_icy(station, finch: BBRF.API.Finch)

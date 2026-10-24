@@ -6,6 +6,7 @@ defmodule BBRF.Application do
 
     * `BBRF.API` - BBRF_API (default 1)
     * `BBRF.Ingester` - BBRF_INGESTER (default 1), never on a hub
+    * `BBRF.Sync` - from the ingest node to the hub, per role
 
   Each switch is `1` or `0`; anything else stops the boot. The `:api` and
   `:ingester` app env keys switch a component off whatever the env says
@@ -14,7 +15,7 @@ defmodule BBRF.Application do
 
   use Application
   require Logger
-  alias BBRF.{API, Env, Ingester, Role, Setup}
+  alias BBRF.{API, Env, Ingester, Role, Setup, Sync}
   alias BBRF.Ingester.Log
   alias BBRF.Ingester.Track.Strategy
 
@@ -27,21 +28,23 @@ defmodule BBRF.Application do
 
     strategy = if ingester?, do: Strategy.from_env()
 
-    if ingester?, do: Log.attach()
+    if ingester? or role == :hub, do: Log.attach()
 
     :ok = BBRF.Journal.ensure!()
 
     children =
       [BBRF.Repo, Setup] ++
         if(api?, do: API.children(), else: []) ++
-        if(ingester?, do: Ingester.children(strategy), else: [])
+        if(ingester?, do: Ingester.children(strategy), else: []) ++
+        Sync.children(role)
 
     Logger.info("""
     bbrf started
       - role: #{role}
-      - db:#{Keyword.get(Application.get_env(:bbrf, BBRF.Repo, []), :database)}
+      - db: #{Keyword.get(Application.get_env(:bbrf, BBRF.Repo, []), :database)}
       - #{if api?, do: API.describe(), else: "api off"}
       - #{if ingester?, do: Ingester.describe(strategy), else: "ingester off"}
+      - #{Sync.describe(role)}
     """)
 
     Supervisor.start_link(children, strategy: :one_for_one, name: BBRF.Supervisor)

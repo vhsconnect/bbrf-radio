@@ -4,17 +4,10 @@ defmodule BBRF.History do
   stations that played an artist or title, found through the
   `track_search` full-text index, and the plays themselves joined with
   the station that played them.
-
-  It reads them through `repo/0`, the repo holding the ingested
-  `stations` and `track_observations`.
   """
 
   alias BBRF.Repo
   alias BBRF.Ingester.Stations
-
-  @doc "The repo holding the ingested data: the `:history_repo` app env key, `BBRF.Repo` unset."
-  @spec repo() :: module()
-  def repo, do: Application.get_env(:bbrf, :history_repo, Repo)
 
   # the station fields the frontend needs to show a play and tune in to it
   @track_station_columns [
@@ -46,7 +39,7 @@ defmodule BBRF.History do
     {where, params} = track_filters(filters)
 
     %{rows: rows} =
-      repo().query!(
+      Repo.query!(
         """
         SELECT o.id, o.observed_at, o.raw_title, o.artist, o.title,
                #{Enum.map_join(@track_station_columns, ", ", &"s.#{&1}")}
@@ -135,7 +128,7 @@ defmodule BBRF.History do
 
       match ->
         %{rows: rows} =
-          repo().query!(
+          Repo.query!(
             """
             SELECT #{Enum.map_join(Stations.api_columns(), ", ", &"s.#{&1}")}
               FROM (SELECT o.stationuuid, MAX(track_search.rowid) AS last_play
