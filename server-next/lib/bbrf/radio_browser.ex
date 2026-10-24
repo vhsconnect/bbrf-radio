@@ -13,7 +13,7 @@ defmodule BBRF.RadioBrowser do
   picked on first use and kept until a request to it fails.
   """
 
-  @user_agent "vhsconnect/bbrf-radio server-next/0.1.0"
+  @user_agent "vhsconnect/bbrf-radio server-next/#{Mix.Project.config()[:version]}"
   @mirrors_host ~c"all.api.radio-browser.info"
   @fallback_mirror "de1.api.radio-browser.info"
   @mirror_key {__MODULE__, :mirror}

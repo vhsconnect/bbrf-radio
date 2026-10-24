@@ -22,17 +22,21 @@ defmodule BBRF.IngestStat do
 
   @doc "Insert one bookkeeping row for a poll, a wave, a sync or a prune."
   def record(endpoint, stats) do
-    Repo.insert_all(__MODULE__, [
-      %{
-        endpoint: endpoint,
-        polled_at: DateTime.to_iso8601(DateTime.utc_now()),
-        row_count: stats.row_count,
-        inserted: stats.inserted,
-        updated: stats.updated,
-        unchanged: stats.unchanged,
-        duration_ms: stats.duration_ms,
-        error: stats.error
-      }
-    ])
+    result =
+      Repo.insert_all(__MODULE__, [
+        %{
+          endpoint: endpoint,
+          polled_at: DateTime.to_iso8601(DateTime.utc_now()),
+          row_count: stats.row_count,
+          inserted: stats.inserted,
+          updated: stats.updated,
+          unchanged: stats.unchanged,
+          duration_ms: stats.duration_ms,
+          error: stats.error
+        }
+      ])
+
+    :telemetry.execute([:bbrf, :ingest, :stat], %{}, %{endpoint: endpoint, stats: stats})
+    result
   end
 end

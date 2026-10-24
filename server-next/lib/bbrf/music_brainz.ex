@@ -20,7 +20,7 @@ defmodule BBRF.MusicBrainz do
 
   alias BBRF.Env
 
-  @user_agent "bbrf-radio/0.10.3 ( https://github.com/vhsconnect/bbrf-radio )"
+  @user_agent "bbrf-radio/#{Mix.Project.config()[:version]} ( https://github.com/vhsconnect/bbrf-radio )"
   @default_base_url "https://musicbrainz.org/ws/2"
   @slot_key {__MODULE__, :slot}
   # an initial last-request time old enough that the first request goes
@@ -170,6 +170,14 @@ defmodule BBRF.MusicBrainz do
   end
 
   defp slots do
+    case :persistent_term.get(@slot_key, nil) do
+      nil -> :global.trans({@slot_key, self()}, &create_slots/0, [node()])
+      slots -> slots
+    end
+  end
+
+  # under the lock, so concurrent first requests share one counter
+  defp create_slots do
     case :persistent_term.get(@slot_key, nil) do
       nil ->
         slots = :atomics.new(1, signed: true)

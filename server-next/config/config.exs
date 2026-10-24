@@ -3,7 +3,8 @@ import Config
 config :bbrf, ecto_repos: [BBRF.Repo]
 
 config :logger, :console,
-  format: "$time [$level] $message\n",
+  format: "$time [$level] $metadata$message\n",
+  metadata: [:job, :run],
   level: :info
 
 if config_env() == :test do

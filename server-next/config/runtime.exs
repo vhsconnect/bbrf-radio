@@ -3,6 +3,8 @@ import Config
 # The database sits in the working directory unless BBRF_DB says
 # otherwise (the container points it at a volume).
 if config_env() != :test do
+  config :logger, level: String.to_existing_atom(System.get_env("LOG_LEVEL", "info"))
+
   db_path = System.get_env("BBRF_DB", "data/bbrf.sqlite")
 
   File.mkdir_p(Path.dirname(Path.expand(db_path)))

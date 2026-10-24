@@ -90,6 +90,7 @@ defmodule BBRF.MusicBrainzTest do
   end
 
   test "concurrent requests are spaced one interval apart" do
+    MusicBrainz.genres()
     System.put_env("MUSICBRAINZ_INTERVAL_MS", "100")
 
     [first, second, third] =

@@ -58,6 +58,52 @@ defmodule BBRF.Ingester.TrackWaveTest do
     assert station_row("down") == ["unknown", 1, nil, "2026-10-19T12:15:00.000000Z"]
   end
 
+  test "persist_wave emits one check event per station" do
+    Stations.upsert([
+      Metatable.station(%{"stationuuid" => "playing"}),
+      Metatable.station(%{"stationuuid" => "down"})
+    ])
+
+    test_pid = self()
+
+    :telemetry.attach(
+      "check-test",
+      [:bbrf, :track, :check],
+      fn _event, _measurements, meta, _config -> send(test_pid, {:check, meta}) end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach("check-test") end)
+
+    [down, playing] = wave()
+
+    Track.persist_wave(
+      [
+        {playing, {"icecast", {:ok, Metatable.observation(%{stationuuid: "playing"})}}},
+        {down, {"icecast", {:error, "timeout"}}}
+      ],
+      Metatable.now(),
+      @adaptive
+    )
+
+    assert_received {:check,
+                     %{
+                       station: %{stationuuid: "playing"},
+                       outcome: :changed,
+                       method: "icecast",
+                       title: "Artist - Song",
+                       reason: nil
+                     }}
+
+    assert_received {:check,
+                     %{
+                       station: %{stationuuid: "down"},
+                       outcome: :fail,
+                       title: nil,
+                       reason: "timeout"
+                     }}
+  end
+
   test "persist_wave leaves stations edited during the wave due" do
     Stations.upsert([Metatable.station()])
     [station] = wave()

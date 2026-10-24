@@ -13,6 +13,7 @@ defmodule BBRF.Ingester.Scheduler do
 
   use GenServer
   require Logger
+  alias BBRF.Ingester.Log
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
@@ -34,6 +35,7 @@ defmodule BBRF.Ingester.Scheduler do
       job: Keyword.fetch!(opts, :job)
     }
 
+    Logger.metadata(job: state.label)
     Process.send_after(self(), :tick, 0)
     {:ok, state}
   end
@@ -50,13 +52,15 @@ defmodule BBRF.Ingester.Scheduler do
   # jobs swallow their own errors by design; this is the last resort so
   # a surprise never crash-loops the scheduler
   defp run(%{label: label, job: {module, fun, args}}) do
-    result = apply(module, fun, args)
-    Logger.info("#{label} #{inspect(result)}")
+    Logger.metadata(run: Log.run_id())
+
+    :telemetry.span([:bbrf, :scheduler, :job], %{job: label}, fn ->
+      {apply(module, fun, args), %{job: label}}
+    end)
   rescue
-    exception ->
-      Logger.error(
-        "#{label} job crashed:\n" <>
-          Exception.format(:error, exception, __STACKTRACE__)
-      )
+    # the span already reported it
+    _exception -> :crashed
+  after
+    Logger.metadata(run: nil)
   end
 end

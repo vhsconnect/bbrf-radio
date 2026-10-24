@@ -532,6 +532,18 @@ defmodule BBRF.Ingester.Track do
         |> Enum.each(&update_stations/1)
       end)
 
+    results
+    |> Enum.zip(outcomes)
+    |> Enum.each(fn {{station, {method, result}}, {_station, outcome, _state}} ->
+      :telemetry.execute([:bbrf, :track, :check], %{}, %{
+        station: station,
+        method: method,
+        outcome: outcome_tag(outcome),
+        title: outcome_title(station, outcome),
+        reason: reason(result)
+      })
+    end)
+
     outcomes
     |> Enum.frequencies_by(fn {_station, outcome, _state} -> outcome_tag(outcome) end)
     |> Map.put(
@@ -558,6 +570,23 @@ defmodule BBRF.Ingester.Track do
 
   defp outcome_tag({:changed, _title, _observation}), do: :changed
   defp outcome_tag(tag), do: tag
+
+  defp outcome_title(_station, {:changed, title, _observation}), do: title
+  defp outcome_title(station, :idle), do: station.last_title
+  defp outcome_title(_station, _outcome), do: nil
+
+  defp reason({:unreachable, detail}), do: detail
+  defp reason({:error, detail}), do: detail
+  defp reason(result) when is_atom(result), do: Atom.to_string(result)
+  defp reason(_result), do: nil
+
+  defp failure_reasons(results) do
+    for {station, {_method, result}} <- results,
+        classify(station, result) == :fail,
+        reduce: %{} do
+      reasons -> Map.update(reasons, String.slice(reason(result), 0, 60), 1, &(&1 + 1))
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Wave execution
@@ -623,6 +652,12 @@ defmodule BBRF.Ingester.Track do
       }
 
       IngestStat.record("track-wave", stats)
+
+      :telemetry.execute([:bbrf, :track, :wave], %{checked: length(results), cut: cut}, %{
+        strategy: Strategy.name(strategy),
+        failures: failure_reasons(results)
+      })
+
       stats
     rescue
       exception ->

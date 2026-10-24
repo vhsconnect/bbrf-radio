@@ -14,6 +14,7 @@ defmodule BBRF.Application do
   use Application
   require Logger
   alias BBRF.{API, Env, Ingester, Setup}
+  alias BBRF.Ingester.Log
   alias BBRF.Ingester.Track.Strategy
 
   @impl true
@@ -21,6 +22,8 @@ defmodule BBRF.Application do
     api? = enabled?(:api, "BBRF_API")
     ingester? = enabled?(:ingester, "BBRF_INGESTER")
     strategy = if ingester?, do: Strategy.from_env()
+
+    if ingester?, do: Log.attach()
 
     children =
       [BBRF.Repo, Setup] ++

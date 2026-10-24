@@ -1,9 +1,9 @@
 defmodule BBRF.Ingester.Report do
   @moduledoc """
   Every REPORT_SECONDS (default 10) log the observation/classification
-  counters with deltas since the last report, plus one line per
-  ingest_stats row produced in between (waves, ingests, prunes). The first
-  report after startup is a baseline (raw counts, no deltas, no rows).
+  counters with deltas since the last report. The first report after
+  startup is a baseline (raw counts, no deltas). What each wave, poll and
+  prune did is logged as it happens, see `BBRF.Ingester.Log`.
 
   Observations are counted once at boot; after that each report adds
   the rows past the last seen id and subtracts what prunes deleted, so
@@ -107,21 +107,6 @@ defmodule BBRF.Ingester.Report do
         "removed=#{delta.(count.("removed", snap), count.("removed", prev))}"
 
     Logger.info("report #{line} | #{length(rows)} stats rows since last report")
-
-    Enum.each(rows, fn [
-                         _id,
-                         endpoint,
-                         _polled_at,
-                         row_count,
-                         inserted,
-                         unchanged,
-                         duration_ms,
-                         error
-                       ] ->
-      Logger.info(
-        "     #{endpoint} rows: #{row_count} inserted: #{inserted} unchanged: #{unchanged} #{duration_ms}ms #{error || ""}"
-      )
-    end)
 
     %{
       last_id: last_id,
