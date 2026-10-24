@@ -6,6 +6,8 @@ defmodule BBRF.API.Router do
 
   Radio-browser calls go through `BBRF.RadioBrowser`, the same
   client the ingester uses. Favorites live in SQLite (`BBRF.Favorites`).
+  `/nowplaying/:uuid` reads the in-band ICY title of a station's stream, for
+  the frontend when the icecast status page has none.
   `/bytrack` and `/tracks` have no node counterpart: they read the
   ingested track history (`BBRF.History`) and page like the other
   `/by*` routes.
@@ -14,7 +16,10 @@ defmodule BBRF.API.Router do
   use Plug.Router
 
   require Logger
-  alias BBRF.{Env, Favorites, History, RadioBrowser}
+  import Ecto.Query, only: [from: 2]
+
+  alias BBRF.{Env, Favorites, History, RadioBrowser, Repo, Station}
+  alias BBRF.Ingester.Track
 
   @static_files ["index.html", "index.js", "styles.css", "favicon-16x16.png"]
 
@@ -75,6 +80,16 @@ defmodule BBRF.API.Router do
     end
   end
 
+  get "/nowplaying/:uuid" do
+    case now_playing(uuid) do
+      {:ok, %{raw_title: title} = observation} when is_binary(title) ->
+        json(conn, Map.take(observation, [:artist, :title, :raw_title]))
+
+      _no_title ->
+        send_resp(conn, 204, "")
+    end
+  end
+
   get "/clicked/:uuid" do
     respond(conn, fn -> RadioBrowser.get_json("url/#{segment(uuid)}") end)
   end
@@ -121,6 +136,21 @@ defmodule BBRF.API.Router do
     case Integer.parse(Map.get(params, "offset", "0")) do
       {n, _} when n > 0 -> n
       _ -> 0
+    end
+  end
+
+  defp now_playing(uuid) do
+    from(s in Station,
+      where: s.stationuuid == ^uuid,
+      select: %{
+        stationuuid: s.stationuuid,
+        stream_url: fragment("COALESCE(NULLIF(?, ''), ?)", s.url_resolved, s.url)
+      }
+    )
+    |> Repo.one()
+    |> case do
+      nil -> :unknown_station
+      station -> Track.fetch_icy(station, finch: BBRF.API.Finch)
     end
   end
 

@@ -19,7 +19,7 @@ defmodule BBRF.MixProject do
   # both (see BBRF.Application); run it with `mix run --no-halt`
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :observer],
       mod: {BBRF.Application, []}
     ]
   end

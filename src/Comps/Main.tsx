@@ -73,6 +73,7 @@ export type Api = {
     sort: TrackSort,
     currentOffset: number
   ) => Effect.Effect<Tracklisting, UnknownException, never>
+  nowPlaying: (uuid: string) => Promise<string | undefined>
 }
 
 export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
@@ -179,6 +180,14 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
               .join('&')}`
           ).then(Schema.decodeUnknownPromise(TracklistingSchema))
         ),
+      nowPlaying: (uuid: string) =>
+        fetch(`/nowplaying/${encodeURIComponent(uuid)}`)
+          .then(x => (x.status === 200 ? x.json() : undefined))
+          .then(x =>
+            x?.title
+              ? `${x.artist ? x.artist + ': ' : ''}${x.title}`
+              : x?.raw_title
+          ),
     },
     client: {
       favorites: () =>
@@ -247,6 +256,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         Effect.promise(() => radioApi.clickStation(radioBrowserApiUrl, uuid)),
       // server only
       tracks: () => Effect.succeed<Tracklisting>([]),
+      nowPlaying: () => Promise.resolve(undefined),
     },
   }
 

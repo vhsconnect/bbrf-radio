@@ -115,7 +115,7 @@ defmodule BBRF.Ingester.TrackIcyTest do
     chunks = for <<chunk::binary-size(16) <- body>>, do: chunk
 
     station = serve(%{trickle: {headers, chunks}})
-    {elapsed_us, result} = :timer.tc(fn -> Track.fetch_icy(station, 500) end)
+    {elapsed_us, result} = :timer.tc(fn -> Track.fetch_icy(station, budget_ms: 500) end)
 
     assert result == :no_source
     assert elapsed_us < 1_000_000

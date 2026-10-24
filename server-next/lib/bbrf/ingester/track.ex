@@ -197,11 +197,17 @@ defmodule BBRF.Ingester.Track do
   Read the in-band ICY metadata of the stream: request it with
   `Icy-MetaData: 1`, skip `icy-metaint` bytes of audio and decode the
   `StreamTitle` of the metadata block that follows, then hang up.
+  Options: `:budget_ms` and `:finch`, the name of the Finch instance to
+  request through (the ingester's wave pool by default).
   Returns the same shapes as `fetch_status/1`; a stream without
   `icy-metaint`, or too slow to reach its metadata within `budget_ms`,
   is `:no_source`.
   """
-  def fetch_icy(%{stationuuid: stationuuid, stream_url: stream_url}, budget_ms \\ @icy_budget_ms) do
+  def fetch_icy(station, opts \\ [])
+
+  def fetch_icy(%{stationuuid: stationuuid, stream_url: stream_url}, opts) do
+    budget_ms = Keyword.get(opts, :budget_ms, @icy_budget_ms)
+    finch = Keyword.get(opts, :finch, BBRF.Ingester.Finch)
     deadline = System.monotonic_time(:millisecond) + budget_ms
 
     case Req.get(stream_url,
@@ -210,7 +216,7 @@ defmodule BBRF.Ingester.Track do
              {"icy-metadata", "1"},
              {"connection", "close"}
            ],
-           finch: [name: BBRF.Ingester.Finch],
+           finch: [name: finch],
            receive_timeout: min(@receive_timeout_ms, budget_ms),
            retry: false,
            raw: true,

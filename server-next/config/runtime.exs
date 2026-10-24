@@ -7,14 +7,20 @@ if config_env() != :test do
 
   db_path = System.get_env("BBRF_DB", "data/bbrf.sqlite")
 
+  journal_mode =
+    case System.get_env("JOURNAL_MODE", "delete") do
+      "delete" -> :delete
+      "wal" -> :wal
+      other -> raise ArgumentError, "JOURNAL_MODE must be delete or wal, got #{inspect(other)}"
+    end
+
   File.mkdir_p(Path.dirname(Path.expand(db_path)))
 
   config :bbrf, BBRF.Repo,
     database: db_path,
     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "5")),
-    # WAL lets the api and the ingester's jobs read/write concurrently
-    # instead of whole-file locking; busy_timeout gives colliding write transactions room to wait
-    journal_mode: :wal,
+    # busy_timeout gives colliding transactions room to wait for the file lock
+    journal_mode: journal_mode,
     synchronous: :normal,
     busy_timeout: 5_000,
     # page cache per connection, in KiB when negative. ecto_sqlite3 defaults

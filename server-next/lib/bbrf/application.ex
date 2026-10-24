@@ -25,6 +25,8 @@ defmodule BBRF.Application do
 
     if ingester?, do: Log.attach()
 
+    :ok = BBRF.Journal.ensure!()
+
     children =
       [BBRF.Repo, Setup] ++
         if(api?, do: API.children(), else: []) ++

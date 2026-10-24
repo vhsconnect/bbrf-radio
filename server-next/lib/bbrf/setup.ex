@@ -6,8 +6,6 @@ defmodule BBRF.Setup do
   - apply pending migrations
   - import favorites from the bbrf-radio node server's storage.json when
     FAVORITES_IMPORT_FILE points at an existing file and the favorites table is empty
-  - enable WAL (persistent in the database file, covers every future
-    connection)
   - enable `auto_vacuum=INCREMENTAL` so the retention pruner can return
     freed pages to the OS via `PRAGMA incremental_vacuum`. SQLite only
     applies the pragma during a VACUUM, and the pragma + VACUUM must
@@ -34,8 +32,6 @@ defmodule BBRF.Setup do
   end
 
   defp configure do
-    Repo.query!("PRAGMA journal_mode=WAL")
-
     %{rows: [[auto_vacuum]]} = Repo.query!("PRAGMA auto_vacuum")
 
     unless auto_vacuum == 2 do

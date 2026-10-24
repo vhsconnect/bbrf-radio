@@ -1,25 +1,16 @@
-# Local development without docker. Every command runs inside the flake's
-# dev shell so node, pnpm, erlang and elixir come from the same pins.
-#
-#   make dev-all       install deps, then the server (api + ingester) and the frontend watcher
-#   make dev-api       install deps, then the server with only the api, on PORT
-#   make dev-ingester  install deps, then the server with only the ingester
-#   make dev           same as dev-all
-#   make server        only the server, no dependency install
-#   make frontend      only the esbuild watcher, writing ./index.js and reloading open pages on rebuild
-#   make test          the server's test suite
-#   make status        where the ingester stands, read from the database (DB=path for another one)
-#   make status-watch  the same, refreshed every 10 seconds
+
+-include .env
+export
 
 NIX := nix develop -c
 PORT ?= 4882
+NODE ?= bbrf
 BBRF_API ?= 1
 BBRF_INGESTER ?= 1
-STATE_DIR ?= $(HOME)/.local/state/bbrf
 DB ?= $(STATE_DIR)/db.sqlite
 FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/storage.json
 
-.PHONY: dev dev-all dev-api dev-ingester deps server frontend test status status-watch
+.PHONY: dev dev-all dev-api dev-ingester deps server attach frontend test status status-watch
 
 dev: dev-all
 
@@ -45,7 +36,10 @@ server:
 		FAVORITES_IMPORT_FILE=$(FAVORITES_IMPORT_FILE) \
 		BBRF_API=$(BBRF_API) \
 		BBRF_INGESTER=$(BBRF_INGESTER) \
-		$(NIX) mix run --no-halt
+		$(NIX) elixir --sname $(NODE) -S mix run --no-halt
+
+attach:
+	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
 
 frontend:
 	$(NIX) pnpm run build && \

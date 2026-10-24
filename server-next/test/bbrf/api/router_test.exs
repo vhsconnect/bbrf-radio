@@ -177,4 +177,11 @@ defmodule BBRF.API.RouterTest do
     assert Favorites.import_json(path) == 1
     assert json(call(:get, "/favorites")) == [@station]
   end
+
+  test "GET /nowplaying/:uuid is 204 for a station we do not know" do
+    conn = call(:get, "/nowplaying/missing")
+
+    assert conn.status == 204
+    assert conn.resp_body == ""
+  end
 end

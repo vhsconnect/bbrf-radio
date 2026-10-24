@@ -10,7 +10,10 @@ defmodule BBRF.API do
   def port, do: Env.int("PORT", 4881)
 
   def children do
-    [{Bandit, plug: BBRF.API.Router, scheme: :http, ip: {0, 0, 0, 0}, port: port()}]
+    [
+      {Finch, name: BBRF.API.Finch, pools: %{default: [protocols: [:http1]]}},
+      {Bandit, plug: BBRF.API.Router, scheme: :http, ip: {0, 0, 0, 0}, port: port()}
+    ]
   end
 
   def describe, do: "api on port #{port()}"

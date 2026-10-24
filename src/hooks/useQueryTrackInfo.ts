@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import * as R from 'ramda'
-import type { RadioInterface  } from '../types'
+import type { RadioInterface } from '../types'
+import type { Api } from '../Comps/Main'
 
 interface Props {
   stationController: RadioInterface
   current: HTMLAudioElement
   defaultMessage: string
   setStatusStack: (xs: string[]) => void
+  api: Api
 }
 
 export default ({
@@ -14,6 +16,7 @@ export default ({
   current,
   defaultMessage,
   setStatusStack,
+  api,
 }: Props) => {
   useEffect(() => {
     let timeoutTime = 10 * 1000
@@ -45,44 +48,53 @@ export default ({
           )
         )
 
-        Promise.allSettled([fetch(maybeXsl(url)), fetch(maybeXsl2(url))])
-          .then(results =>
-            results.filter(x => x.status === 'fulfilled').map(x => x.value)
-          )
-          .then(R.head)
-          .then(x => (x as Response).json())
-          .then(x => x.icestats?.source)
-          .then(
-            R.when(
-              Array.isArray,
-              R.find(
-                R.either(
-                  x =>
-                    R.equals(
-                      normalize(x.listenurl),
-                      normalize(stationController.current?.url)
-                    ),
-                  x =>
-                    R.equals(
-                      normalize(R.last(x.listenurl.split('/'))),
-                      normalize(
-                        R.last(stationController.current?.url.split('/'))
+        const icecastTitle = () =>
+          Promise.allSettled([fetch(maybeXsl(url)), fetch(maybeXsl2(url))])
+            .then(results =>
+              results.filter(x => x.status === 'fulfilled').map(x => x.value)
+            )
+            .then(R.head)
+            .then(x => (x as Response).json())
+            .then(x => x.icestats?.source)
+            .then(
+              R.when(
+                Array.isArray,
+                R.find(
+                  R.either(
+                    x =>
+                      R.equals(
+                        normalize(x.listenurl),
+                        normalize(stationController.current?.url)
+                      ),
+                    x =>
+                      R.equals(
+                        normalize(R.last(x.listenurl.split('/'))),
+                        normalize(
+                          R.last(stationController.current?.url.split('/'))
+                        )
                       )
-                    )
+                  )
                 )
               )
             )
-          )
-          .then(
-            R.when(
-              R.either(R.prop('title'), R.prop('artists')),
-              R.pipe(
+            .then(
+              R.ifElse(
+                R.either(R.prop('title'), R.prop('artists')),
                 x => `${x.artist ? x.artist + ': ' : ''}${x.title}`,
-                Array,
-                setStatusStack,
+                R.always(undefined)
               )
             )
+            .catch(() => undefined)
+
+        icecastTitle()
+          .then(
+            title =>
+              title ?? api.nowPlaying(stationController.current!.stationuuid)
           )
+          .then(title => {
+            if (!title) throw new Error('no track info')
+            setStatusStack([title])
+          })
           .catch(() => {
             timeoutTime = timeoutTime * 4
             setStatusStack([defaultMessage])
