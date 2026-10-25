@@ -2,18 +2,19 @@
 
 bbrf can run on one machine (`BBRF_ROLE=all`, the default: nothing on this page applies) or split over two:
 
-- **hub**: a small machine, reachable from outside. Serves the frontend, the API and the favorites, and keeps a window of track history (`RETENTION_DAYS`, e.g. 30 days, about 2-3 GB). Never ingests.
+- **hub**: a small machine, reachable from outside. Serves the frontend, the API and the favorites, and keeps a window of track history (`RETENTION_DAYS`, e.g. 90 days, about 5-10 GB). Never ingests.
 - **ingest**: a bigger machine, internal, not necessarily always on. Runs the ingester and keeps the full history.
 
-Both run the same code and the same command, `make server`; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
+Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
 
 The link is mutual TLS with one private CA per role: only the ingest node's certificate is accepted by the hub, and the hub's own client side trusts nothing, so it cannot connect out. A shared cookie is the second check. Each node's TLS key and the cookie are kept in a [sops](https://github.com/getsops/sops) file encrypted to that node's [age](https://age-encryption.org) key and an admin key. See `BBRF.Sync` and `scripts/launch.fish` for the details.
 
 ## Before you start
 
 - Both machines: this repo, and either [Nix](https://nixos.org) with flakes (`nix develop` provides Erlang, Elixir, sqlite, fish, openssl, sops and age; the `make` targets use it) or those tools installed by hand.
+- For `make docker`: Docker with compose as well. The image brings its own fish and sops; `make age-key` and `make secrets` still run through Nix.
 - The two machines can reach each other on the LAN, the hub at a fixed address.
-- The admin machine (where the certificates are made) can be either node or a third machine.
+- An admin machine, where `make secrets` runs once and the CA keys stay afterwards. Make it the ingest node (or a third machine), never the hub, which is reachable from outside. Running `make secrets` again, here or anywhere else, makes new CAs and replaces the whole deployment.
 - For moving existing favorites: `curl` and `jq`.
 
 Below, `HUB` and `INGEST` stand for the two addresses, e.g. `192.168.50.121` and `192.168.50.178`. An IP or a hostname both work; it has to be the address the other side dials, since it ends up in the node names (`bbrf_hub@HUB`, `bbrf_ingest@INGEST`) and the certificates.
@@ -51,7 +52,7 @@ It creates, in `secrets/`:
 
 and finishes with `make secrets-check`. Afterwards:
 
-- Move the CA private keys (`~/.local/share/bbrf/ca`) offline, to an encrypted drive or a password manager. They are only needed to issue certificates again.
+- The CA private keys stay in `~/.local/share/bbrf/ca`, where `make secrets-renew` needs them. That is fine on an admin machine that is not the hub; to be stricter, move them offline and bring them back to renew.
 - Back up the admin age key (`~/.config/sops/age/keys.txt`, sops's default; created if it did not exist). It opens both node files.
 
 ## 3. Copy `secrets/` to the other node
@@ -68,7 +69,7 @@ On the hub:
 
     BBRF_ROLE=hub
     SYNC_INGEST_NODE=bbrf_ingest@INGEST
-    RETENTION_DAYS=30
+    RETENTION_DAYS=90
 
 On the ingest node:
 
@@ -76,7 +77,9 @@ On the ingest node:
     SYNC_HUB_NODE=bbrf_hub@HUB
     RETENTION_DAYS=365
 
-The ingest node keeps the database it already has (`BBRF_DB`, or `$STATE_DIR/db.sqlite` with `make`). `SYNC_INTERVAL_HOURS` (24) sets how often it syncs.
+The ingest node keeps the database it already has (`BBRF_DB`, or `$STATE_DIR/db.sqlite` with `make`). `SYNC_INTERVAL_HOURS` (24) sets how often it syncs. History grows by 55-110 MB a day, so 90 days on the hub is 5-10 GB.
+
+With `make docker`, the container mounts `secrets/` read-only and reads the node's age key as `age.key` in `AGE_KEY_DIR` (default `~/.config/bbrf`, where `make age-key` puts it). The decrypted TLS key and cookie live in a tmpfs inside the container. `HOST_UID` and `HOST_GID` (1000 and 100) set the user it runs as, which has to own the database and be able to read the age key.
 
 ## 5. Hub firewall
 
@@ -102,11 +105,17 @@ Favorites live on the hub and are never synced. To bring over the ones from an e
 
 and set `FAVORITES_IMPORT_FILE=/path/to/storage.json` in the hub's `.env`. They are imported at boot while the hub's favorites table is empty.
 
+With `make docker`, the import file is always `bbrf-radio/storage.json` in the old node server's `bbrf-data` volume. On a hub that never ran it, copy the file in and restart the hub:
+
+    docker run --rm -v bbrf-radio_bbrf-data:/d -v "$PWD":/s debian:bookworm-slim \
+      sh -c 'mkdir -p /d/bbrf-radio && cp /s/storage.json /d/bbrf-radio/'
+    docker restart bbrf
+
 ## 7. Bring them up
 
 On both machines, in either order:
 
-    make server
+    make server    # or: make docker, then docker logs -f bbrf
 
 The launcher prints the node it starts, e.g. `==> hub node bbrf_hub@192.168.50.121, TLS distribution on 192.168.50.121 ports 9100-9105`. The hub serves the API right away, with empty history until the first sync. The first sync sends every station and the hub's whole retention window, which can take a few minutes; later ones send a day's worth.
 
@@ -122,7 +131,15 @@ Deploy the same version to both machines. When a version brings a migration, the
 
 ## Certificates
 
-`make secrets-check` on the admin machine warns when a certificate has less than 30 days left. For now renewing means running `make secrets` again (with `FORCE=1` or confirming), which replaces the CAs, the certificates and the cookie, and copying `secrets/` to the other node again; the age keys stay. The same is the way to rotate after a leak, plus new age keys (`rm` the key file, `make age-key`) for a node whose key leaked.
+The node certificates last a year and the CAs five. `make secrets-check` on the admin machine fails when a node certificate has less than 30 days left, or when a CA expires before a renewed certificate would.
+
+To renew, on the admin machine:
+
+    make secrets-renew
+
+It issues new node keys and certificates from the same CAs, and swaps the key in each node's file without touching its cookie or recipients. Copy `secrets/` to the other node, then restart each node when convenient. Both CAs are unchanged, so a renewed node and one not renewed yet still trust each other.
+
+To rotate after a leak, or when the CAs are near their end, run `make secrets` again (with `FORCE=1` or confirming). That replaces the CAs, the certificates and the cookie, so copy `secrets/` over and restart both nodes. Give a node whose age key leaked a new one first (`rm` the key file, `make age-key`).
 
 ## Troubleshooting
 

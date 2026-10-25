@@ -1,4 +1,4 @@
-#!/usr/bin/env fish
+#!/usr/bin/env -S fish --no-config
 # Runs the command that starts a bbrf node (`elixir -S mix run --no-halt`, `bin/bbrf start`)
 # with the distribution its BBRF_ROLE needs:
 #
@@ -31,6 +31,9 @@ set port_min (env_or DIST_PORT_MIN 9100)
 set port_max (env_or DIST_PORT_MAX 9105)
 
 set -q argv[1]; or die "usage: launch.fish <command that starts the node>"
+
+# releases: the node name and the TLS flags come from ELIXIR_ERL_OPTIONS, not RELEASE_NODE
+set -gx RELEASE_DISTRIBUTION none
 
 # hub and ingest: each side trusts only the CA that signs the other side; dud signs nothing
 switch $role
@@ -97,8 +100,6 @@ end
 
 set -gx ELIXIR_ERL_OPTIONS "$flags $ELIXIR_ERL_OPTIONS"
 set -gx BBRF_COOKIE_FILE $runtime/cookie
-# releases: the name and the TLS flags come from ELIXIR_ERL_OPTIONS, not RELEASE_NODE
-set -gx RELEASE_DISTRIBUTION none
 
 echo "==> $role node $node, TLS distribution on "(env_or bind "all interfaces")" ports $port_min-$port_max"
 exec $argv

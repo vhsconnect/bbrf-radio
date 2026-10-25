@@ -1,11 +1,12 @@
-#!/usr/bin/env fish
+#!/usr/bin/env -S fish --no-config
 # Certificates and secrets for a hub + ingest deployment (see server-next/README.md).
 #
 #   secrets.fish age-key   on each node: create its age key if missing, print the public key
 #   secrets.fish init      on the admin machine: CAs, node certificates, cookie, encrypted node files
+#   secrets.fish renew     on the admin machine: new node keys and certificates, same CAs and cookie
 #   secrets.fish check     verify the files in SECRETS_DIR
 #
-# Every prompt can be answered from the environment instead:
+# Every prompt of init can be answered from the environment instead:
 #   HUB_ADDR, INGEST_ADDR   the address (IP or hostname) each node's distribution listens on
 #   HUB_AGE, INGEST_AGE     each node's age public key, from `secrets.fish age-key` on that node
 #   FORCE=1                 replace existing files without asking
@@ -99,7 +100,7 @@ function new_node -a name ca addr
         keyUsage=digitalSignature >$work/$name.ext
     and openssl x509 -req -in $work/$name.csr -CA $ca_dir/$ca.crt -CAkey $ca_dir/$ca.key \
         -CAserial $ca_dir/$ca.srl -CAcreateserial -sha256 -days $node_days \
-        -extfile $work/$name.ext -out $secrets_dir/$name.crt 2>/dev/null
+        -extfile $work/$name.ext -out $work/$name.crt 2>/dev/null
     or die "cannot issue the $name certificate"
 end
 
@@ -112,7 +113,29 @@ function seal -a name node recipient
     end >$work/$name.yaml
     sops --encrypt --age $recipient,$admin_age --input-type yaml --output-type yaml \
         $work/$name.yaml >$secrets_dir/$name.enc.yaml
+    and cp $work/$name.crt $secrets_dir/$name.crt
     or die "cannot encrypt $name.enc.yaml"
+end
+
+# replaces only the key in an existing node file, so its cookie and recipients stay
+function reseal -a name
+    echo '"'(string join '\n' <$work/$name.key)'\n"' >$work/$name.json
+    and SOPS_AGE_KEY_FILE=$admin_age_key_file sops set --value-file $secrets_dir/$name.enc.yaml '["key"]' $work/$name.json
+    and cp $work/$name.crt $secrets_dir/$name.crt
+    or die "cannot update the key in $name.enc.yaml"
+end
+
+function make_work
+    # plaintext keys only ever live here, in memory where the system allows
+    set -l tmp (env_or TMPDIR /tmp)
+    test -w /dev/shm; and set tmp /dev/shm
+    set -g work (mktemp -d $tmp/bbrf-secrets.XXXXXX); or die "cannot create a work directory in $tmp"
+    function remove_work --on-event fish_exit
+        rm -rf $work
+    end
+    function interrupted --on-signal INT --on-signal TERM
+        exit 130
+    end
 end
 
 function init
@@ -144,16 +167,7 @@ function init
     end
     set -g admin_age (age-keygen -y $admin_age_key_file); or die "cannot read $admin_age_key_file"
 
-    # plaintext keys only ever live here, in memory where the system allows
-    set -l tmp (env_or TMPDIR /tmp)
-    test -w /dev/shm; and set tmp /dev/shm
-    set -g work (mktemp -d $tmp/bbrf-secrets.XXXXXX); or die "cannot create a work directory in $tmp"
-    function remove_work --on-event fish_exit
-        rm -rf $work
-    end
-    function interrupted --on-signal INT --on-signal TERM
-        exit 130
-    end
+    make_work
 
     say "CAs: caI signs the ingest node, caH the hub, dud nothing (its key is thrown away)"
     new_ca caI
@@ -187,9 +201,41 @@ function init
         '' \
         "- $secrets_dir/ holds only public certificates and encrypted files; copy it to the other node" \
         '  (scp -r). It is gitignored: it belongs to this deployment, not to the project.' \
-        "- $ca_dir holds the CA private keys. Move them offline (an encrypted drive or a password" \
-        '  manager); they are needed only to issue new certificates.' \
+        "- $ca_dir holds the CA private keys, which secrets.fish renew needs. Keep them on this" \
+        '  machine only if it is not the hub, or move them offline and bring them back to renew.' \
         "- Back up the admin age key $admin_age_key_file."
+end
+
+function renew
+    need openssl sops
+
+    for file in $secrets_dir/{hub,ingest}.enc.yaml
+        test -f $file; or die "$file not found; run 'make secrets' first"
+    end
+    for ca in caI caH
+        test -f $ca_dir/$ca.key; or die "no $ca_dir/$ca.key; bring the CA keys back, or start over with 'make secrets'"
+    end
+    test -f $admin_age_key_file; or die "no admin age key at $admin_age_key_file; it opens the node files"
+
+    umask 077
+    make_work
+
+    say "node certificates, $node_days days; the CAs, the cookie and the age keys stay"
+    for pair in hub:caH ingest:caI
+        set -l name (string split -f1 : $pair)
+        set -l node (SOPS_AGE_KEY_FILE=$admin_age_key_file sops --decrypt --extract '["node"]' $secrets_dir/$name.enc.yaml)
+        or die "cannot decrypt $name.enc.yaml with $admin_age_key_file"
+        new_node $name (string split -f2 : $pair) (string replace -r '^[^@]*@' '' -- $node)
+        reseal $name
+    end
+    chmod 644 $secrets_dir/*.crt $secrets_dir/*.enc.yaml
+
+    check
+
+    printf '%s\n' \
+        '' \
+        "Done. Copy $secrets_dir/ to the other node and restart each node when convenient:" \
+        'both CAs are unchanged, so renewed and not yet renewed nodes still trust each other.'
 end
 
 function ok
@@ -210,6 +256,13 @@ function check
     set -g failed 0
 
     say "checking $secrets_dir"
+    for ca in caI caH
+        if openssl x509 -checkend (math "$node_days * 86400") -noout -in $secrets_dir/$ca.crt >/dev/null
+            ok "$ca.crt expires "(enddate $secrets_dir/$ca.crt)
+        else
+            bad "$ca.crt expires within $node_days days, before a renewed certificate would; start over with 'make secrets'"
+        end
+    end
     for pair in hub:caH ingest:caI
         set -l name (string split -f1 : $pair)
         set -l ca (string split -f2 : $pair)
@@ -255,9 +308,11 @@ switch "$argv[1]"
         age_key
     case init
         init
+    case renew
+        renew
     case check
         check
     case '*'
-        sed -n '2,11p' (status filename) | sed 's/^# \{0,1\}//'
+        sed -n '2,12p' (status filename) | sed 's/^# \{0,1\}//'
         exit 1
 end

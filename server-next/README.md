@@ -29,7 +29,7 @@ Environment:
   - `SYNC_HUB_NODE` ingest only: the hub node to push to, e.g. `bbrf_hub@192.168.50.121`; unset, nothing is synced
   - `SYNC_INTERVAL_HOURS` (24) ingest only: time from one successful sync to the next, checked hourly
   - `SYNC_INGEST_NODE` hub only: the one node allowed to push; unset, every push is refused
-  - on a hub, `RETENTION_DAYS` is how much history the hub keeps (30 is about 2-3 GB), pruned every `PRUNE_HOURS`
+  - on a hub, `RETENTION_DAYS` is how much history the hub keeps (90 is about 5-10 GB), pruned every `PRUNE_HOURS`
 - `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`), on top of the role. Any other value stops the boot
 - `BBRF_DB` (`data/bbrf.sqlite`) SQLite file
 - `DB_POOL_SIZE` (5) SQLite connections; `DB_CACHE_KB` (8000) page cache per connection, kept small since the OS already caches the file
@@ -76,9 +76,9 @@ Switching strategies keeps every station's state and back-off. `full-sweep` does
 
 From the repo root (the image builds the frontend from `src/`):
 
-    docker compose up -d bbrf    # http://localhost:4882
+    make docker    # http://localhost:4882
 
-The database is mounted from `${STATE_DIR:-~/.local/state/bbrf}`.
+`make docker` creates the mounted directories and runs `docker compose up -d --build bbrf`. The container shares the host's network and listens on `PORT` (4882). The database is mounted from `${STATE_DIR:-~/.local/state/bbrf}`. The image's entrypoint is `scripts/launch.fish`, so `.env` picks the role as with `make server`.
 
 ## Layout
 

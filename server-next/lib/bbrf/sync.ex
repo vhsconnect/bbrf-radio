@@ -46,7 +46,7 @@ defmodule BBRF.Sync do
 
   def interval_hours, do: Env.int("SYNC_INTERVAL_HOURS", 24)
 
-  @doc "The sync processes `role` runs: the receiver and retention on a hub, the hourly push on an ingest node with a hub configured."
+  @doc "The sync processes `role` runs: the receiver and retention on a hub, the push when due on an ingest node with a hub configured."
   def children(:hub), do: [Receiver, BBRF.Ingester.prune_child()]
 
   def children(:ingest) do

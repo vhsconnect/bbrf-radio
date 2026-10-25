@@ -10,8 +10,9 @@ BBRF_INGESTER ?= 1
 DB ?= $(STATE_DIR)/db.sqlite
 FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/storage.json
 SECRETS_DIR ?= $(CURDIR)/secrets
+AGE_KEY_DIR ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf
 
-.PHONY: dev dev-all dev-api dev-ingester deps server attach frontend test status status-watch age-key secrets secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps server docker attach frontend test status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -39,6 +40,12 @@ server:
 		BBRF_INGESTER=$(BBRF_INGESTER) \
 		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt
 
+# server, as a release in Docker; .env picks the role here too. The mounted directories are
+# created first so Docker does not create them as root
+docker:
+	mkdir -p $(STATE_DIR) $(SECRETS_DIR) $(AGE_KEY_DIR)
+	docker compose up -d --build bbrf
+
 attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
 
@@ -61,6 +68,9 @@ age-key:
 
 secrets:
 	$(NIX) scripts/secrets.fish init
+
+secrets-renew:
+	$(NIX) scripts/secrets.fish renew
 
 secrets-check:
 	$(NIX) scripts/secrets.fish check
