@@ -21,7 +21,11 @@ defmodule BBRF.Sync do
   in short transactions. A sync that breaks off resumes from the hub's
   highest id the next time. The last successful one is recorded in
   ingest_stats under `sync`; the next is due SYNC_INTERVAL_HOURS
-  (default 24) after it, checked hourly.
+  (default 24) after it, checked every 10 minutes so a failed one is
+  retried soon.
+
+  The nodes run TLS distribution, set up by `scripts/launch.fish`, which
+  leaves the shared cookie in BBRF_COOKIE_FILE for `use_cookie/0`.
   """
 
   require Logger
@@ -51,7 +55,7 @@ defmodule BBRF.Sync do
         {Scheduler,
          name: BBRF.Sync.Scheduler,
          label: "sync",
-         interval_ms: 3_600_000,
+         interval_ms: 600_000,
          job: {__MODULE__, :sync_if_due, []}}
       ]
     else
@@ -73,6 +77,17 @@ defmodule BBRF.Sync do
   end
 
   def describe(:all), do: "sync off (one database)"
+
+  @doc "Switch to the cookie in BBRF_COOKIE_FILE, when set, before any node connects."
+  @spec use_cookie() :: :ok
+  def use_cookie do
+    case System.get_env("BBRF_COOKIE_FILE") do
+      nil -> :ok
+      path -> path |> File.read!() |> String.trim() |> String.to_atom() |> Node.set_cookie()
+    end
+
+    :ok
+  end
 
   @spec sync_if_due() :: {:ok, map()} | {:error, term()} | :not_due
   def sync_if_due do

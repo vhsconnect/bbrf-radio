@@ -28,9 +28,10 @@ defmodule BBRF.Application do
 
     strategy = if ingester?, do: Strategy.from_env()
 
-    if ingester? or role == :hub, do: Log.attach()
+    if ingester? or role != :all, do: Log.attach()
 
     :ok = BBRF.Journal.ensure!()
+    :ok = Sync.use_cookie()
 
     children =
       [BBRF.Repo, Setup] ++

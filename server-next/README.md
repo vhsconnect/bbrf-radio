@@ -68,6 +68,10 @@ Switching strategies keeps every station's state and back-off. `full-sweep` does
 
 `make status` (from the repo root) prints where the ingester stands, read-only from the database: catalogue size, first-pass progress, time since each station's last check, when stations are due next, wave pace and the backlog still due, and each loop's last run. `make status-watch` refreshes it every 10 seconds; `DB=path` points it at another database.
 
+## Hub and ingest on two machines
+
+`BBRF_ROLE=hub` on a small public machine and `BBRF_ROLE=ingest` on a bigger internal one: the ingest node pushes new history to the hub once a day over mutual-TLS Erlang distribution (`BBRF.Sync`), and `make server` starts either. `make age-key`, `make secrets` and `make secrets-check` (`scripts/secrets.fish`) set up the certificates and the sops-encrypted secrets. The whole procedure, from the age keys to the firewall and troubleshooting, is in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Docker
 
 From the repo root (the image builds the frontend from `src/`):

@@ -10,3 +10,5 @@ result
 .opencode
 .env
 plan.md
+# one deployment's certificates and encrypted secrets (make secrets), never part of the project
+secrets/

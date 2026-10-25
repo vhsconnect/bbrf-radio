@@ -39,6 +39,11 @@
             beam.packages.erlang_28.erlang
             beam.packages.erlang_28.elixir
             sqlite
+            # scripts/launch.fish and scripts/secrets.fish
+            fish
+            openssl
+            sops
+            age
           ];
         };
       }

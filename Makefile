@@ -9,8 +9,9 @@ BBRF_API ?= 1
 BBRF_INGESTER ?= 1
 DB ?= $(STATE_DIR)/db.sqlite
 FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/storage.json
+SECRETS_DIR ?= $(CURDIR)/secrets
 
-.PHONY: dev dev-all dev-api dev-ingester deps server attach frontend test status status-watch
+.PHONY: dev dev-all dev-api dev-ingester deps server attach frontend test status status-watch age-key secrets secrets-check
 
 dev: dev-all
 
@@ -36,7 +37,7 @@ server:
 		FAVORITES_IMPORT_FILE=$(FAVORITES_IMPORT_FILE) \
 		BBRF_API=$(BBRF_API) \
 		BBRF_INGESTER=$(BBRF_INGESTER) \
-		$(NIX) elixir --sname $(NODE) -S mix run --no-halt
+		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt
 
 attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
@@ -53,3 +54,13 @@ status:
 
 status-watch:
 	$(NIX) watch -t -n 10 "sqlite3 -readonly '$(DB)' < server-next/scripts/status.sql"
+
+# hub + ingest deployment: run age-key on each node, then secrets once on the admin machine
+age-key:
+	$(NIX) scripts/secrets.fish age-key
+
+secrets:
+	$(NIX) scripts/secrets.fish init
+
+secrets-check:
+	$(NIX) scripts/secrets.fish check
