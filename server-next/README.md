@@ -27,7 +27,7 @@ Environment:
 - `BBRF_ROLE` (`all`) `all` runs both components on one database; `hub` serves the api and never ingests, its track history synced from an ingest node; `ingest` runs the ingester, the api optional. Every role's database has the same schema. Any other value stops the boot
 - sync, over Erlang distribution (the node runs with `--name`/`--sname`); see `BBRF.Sync`:
   - `SYNC_HUB_NODE` ingest only: the hub node to push to, e.g. `bbrf_hub@192.168.50.121`; unset, nothing is synced
-  - `SYNC_INTERVAL_HOURS` (24) ingest only: time from one successful sync to the next, checked hourly
+  - `SYNC_INTERVAL_HOURS` (24) ingest only: time from one successful sync to the next, checked every 10 minutes
   - `SYNC_INGEST_NODE` hub only: the one node allowed to push; unset, every push is refused
   - on a hub, `RETENTION_DAYS` is how much history the hub keeps (90 is about 5-10 GB), pruned every `PRUNE_HOURS`
 - `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`), on top of the role. Any other value stops the boot
