@@ -12,21 +12,18 @@ Use this to test the server or for using bbrf as a radio bookmarking tool with a
 To get started, Start up the server, or better yet host it on your network's raspberry pi or set it up as a `systemd`/`launchd` service. The app is served on port `3335` to be accessed on your browser.
 
 
-### Quick start
+### Quick start hub and/or ingest server
 
-- Build the app `npm run build`
-- Start the service `npm run start`
-- Run the development server `npm run dev`
-- Optionaly add some radio stations to your favs list `npm run defaults`
-- Default port to access the application is on localhost:3335
-- You can also alias the bbrf server for easy scripting `npm link`
-- You can change the binding port, or the fader value by updating/creating your `$XDG_CONFIG_HOME/bbrf-radio/settings` file.
+Needs Erlang/OTP 28, Elixir and pnpm, all in `nix develop`.
 
-```json
-{ "FADER_VALUE": 25, "PORT": 5555, "ITEM_PER_PAGE": 2000 }
+```sh
+pnpm install && pnpm run build   # the frontend bundle
+cd server-next
+mix deps.get
+STATIC_DIR=.. mix run --no-halt
 ```
 
-
+The server listens on port 4881 (`PORT`) and keeps its database in `server-next/data/bbrf.sqlite` (`BBRF_DB`). Any variable from `.env` can be set the same way.
 
 ### Try out the project
 
@@ -43,49 +40,38 @@ docker compose up -d
 
 ### Usage with nixos
 
-This repo exposes a nix module as part of a flake. You can import it as one of your inputs if you use flakes to configure your system (systemd module on NixOs or launchd module on Mac). Otherwise you can just use the package exported as a standalone script that you can invoke in your own systemd module or however else.
+This repo's flake exports a NixOS module that runs the server as a systemd service (`bbrf.service`, state in `/var/lib/bbrf`).
 
 ```nix
 {
-  # your inputs
-  #...
-  inputs =
-    {
-      #...
-      bbrf = "github:vhsconnect/bbrf-radio/master";
-    };
+  inputs.bbrf.url = "github:vhsconnect/bbrf-radio/master";
 
-  # then import it as one your modules
   outputs = inputs: {
-    nixosConfigurations = {
-      mySystem = inputs.nixpkgs.lib.nixosSystem {
-        #...
-        modules = [
-          #...
-          inputs.bbrf.nixosModules.${builtins.currentSystem}.bbrf
-        ];
-      };
+    nixosConfigurations.mySystem = inputs.nixpkgs.lib.nixosSystem {
+      modules = [ inputs.bbrf.nixosModules.default ];
     };
   };
 }
-
 ```
 
-then in your configuration activate it with the settings you prefer
+then in your configuration
 
 ```nix
 {
-  services.bbrf =  {
+  services.bbrf = {
     enable = true;
-    port = 3111;
-    user = "username";
-    fadeValue = 40; # how fast to fade between radios
-    itemsPerPage = 2000; #Upper limit is 100000
+    port = 4882;
+    openFirewall = true;
+    # any variable from .env
+    settings = {
+      FADER_VALUE = 25;
+      ITEMS_PER_PAGE = 5000;
+    };
   };
-
 }
-
 ```
+
+For a hub and an ingest node on two machines, see the NixOS section of `server-next/DEPLOYMENT.md`.
 
 ### Contributing
 

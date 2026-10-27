@@ -17,6 +17,8 @@ The link is mutual TLS with one private CA per role: only the ingest node's cert
 - An admin machine, where `make secrets` runs once and the CA keys stay afterwards. Make it the ingest node (or a third machine), never the hub, which is reachable from outside. Running `make secrets` again, here or anywhere else, makes new CAs and replaces the whole deployment.
 - For moving existing favorites: `curl` and `jq`.
 
+Either node can run on NixOS through the flake's module instead of `make server` or `make docker` (see [NixOS](#nixos)); a NixOS hub with a Docker ingest node, or the other way round, works as long as both run the same version.
+
 Below, `HUB` and `INGEST` stand for the two addresses, e.g. `192.168.50.121` and `192.168.50.178`. An IP or a hostname both work; it has to be the address the other side dials, since it ends up in the node names (`bbrf_hub@HUB`, `bbrf_ingest@INGEST`) and the certificates.
 
 ## 1. An age key on each node
@@ -27,6 +29,8 @@ On the hub and on the ingest node:
 
 This creates `~/.config/bbrf/age.key` (override with `AGE_KEY_FILE`) and prints its public key, `age1...`. The private key never leaves the machine; back it up somewhere safe. The public key is not secret: send it to the admin machine any way you like.
 
+A NixOS node with sops-nix needs no age key of its own: sops-nix decrypts with the host's SSH key. Skip this step for it and answer `ssh` for its age key in step 2.
+
 ## 2. Certificates and secrets, on the admin machine
 
 Put the addresses and the two public keys in the admin machine's `.env` (or answer the prompts):
@@ -36,9 +40,13 @@ Put the addresses and the two public keys in the admin machine's `.env` (or answ
     HUB_AGE=age1...
     INGEST_AGE=age1...
 
+`HUB_AGE=ssh` (or `INGEST_AGE=ssh`) derives that node's age key from its SSH host key in `~/.ssh/known_hosts` (override with `KNOWN_HOSTS`), so ssh to it once from the admin machine first.
+
 Then:
 
     make secrets
+
+or, without a checkout, `nix run github:vhsconnect/bbrf-radio#secrets -- init` (also `renew` and `check`).
 
 It creates, in `secrets/`:
 
@@ -64,6 +72,8 @@ and finishes with `make secrets-check`. Afterwards:
 Nothing in it is readable without the right age key.
 
 ## 4. `.env` on each node
+
+Start from the example, `cp .env.example .env`, then set the role.
 
 On the hub:
 
@@ -141,6 +151,45 @@ It issues new node keys and certificates from the same CAs, and swaps the key in
 
 To rotate after a leak, or when the CAs are near their end, run `make secrets` again (with `FORCE=1` or confirming). That replaces the CAs, the certificates and the cookie, so copy `secrets/` over and restart both nodes. Give a node whose age key leaked a new one first (`rm` the key file, `make age-key`).
 
+## NixOS
+
+The flake's module runs either role as `bbrf.service`. It does what `scripts/launch.fish` does for the other two ways: the TLS option file is generated from the certificates, and the node's key and cookie reach the service through systemd credentials, never the store or the environment. With sops-nix imported, `sopsFile` decrypts the node's `secrets/<role>.enc.yaml` as it is; without it, point `keyFile` and `cookieFile` at files put there some other way (agenix, by hand).
+
+Commit `secrets/` to the private repo of your NixOS configuration: it holds only certificates and encrypted files.
+
+The hub:
+
+```nix
+{
+  imports = [ inputs.bbrf.nixosModules.default inputs.sops-nix.nixosModules.sops ];
+
+  services.bbrf = {
+    enable = true;
+    role = "hub";
+    openFirewall = true; # the API
+    settings.RETENTION_DAYS = 90;
+    distribution = {
+      address = "192.168.50.121"; # HUB_ADDR
+      peerAddress = "192.168.50.178"; # INGEST_ADDR
+      certificates = ./secrets;
+      sopsFile = ./secrets/hub.enc.yaml;
+      openFirewall = true; # epmd and 9100-9105
+      firewallInterface = "enp3s0"; # the LAN one, so they stay closed to the outside
+    };
+  };
+}
+```
+
+`distribution.openFirewall` opens the ports to every host on that interface; TLS still accepts only the ingest node's certificate. To open them to the ingest node's address alone, leave it off and add the rules from step 5 to your configuration.
+
+The ingest node is the same with `role = "ingest"`, the two addresses swapped, `sopsFile = ./secrets/ingest.enc.yaml` and no `distribution.openFirewall`. It listens for distribution on loopback only.
+
+sops-nix decrypts with the host's SSH key by default (the `ssh` answer in step 2). For a dedicated age key instead, give the node one with `make age-key`, use its public key in step 2 and set `sops.age.keyFile`.
+
+The database is `/var/lib/bbrf/db.sqlite`, owned by the `bbrf` user. Any variable from `.env` goes in `settings`; booleans become `1` and `0`. For favorites, copy `storage.json` somewhere the `bbrf` user can read and set `favoritesImportFile`. The `all` role runs without distribution, so there is no remote shell into it.
+
+After `make secrets-renew`, copy the new `secrets/` into the configuration and rebuild; sops-nix restarts the service when the key changes.
+
 ## Troubleshooting
 
 A failed sync is logged as a warning on the ingest node, ending in the reason, and retried within 10 minutes:
@@ -153,6 +202,6 @@ A failed sync is logged as a warning on the ingest node, ending in the reason, a
 | `:not_allowed` | The hub's `SYNC_INGEST_NODE` does not match the ingest node's name |
 | `{:columns_mismatch, table}` | A table was changed by hand on one side |
 
-The launcher stops with a message when the node's age key or `secrets/<role>.enc.yaml` is missing, or when the file was encrypted to another key.
+The launcher stops with a message when the node's age key or `secrets/<role>.enc.yaml` is missing, or when the file was encrypted to another key. On NixOS the same shows up as `sops-install-secrets` failing during `nixos-rebuild`, and `bbrf.service` not starting for lack of its credentials.
 
 There is no remote shell into the hub: it accepts no certificate but the ingest node's. Use its log.

@@ -8,7 +8,9 @@
 #
 # Every prompt of init can be answered from the environment instead:
 #   HUB_ADDR, INGEST_ADDR   the address (IP or hostname) each node's distribution listens on
-#   HUB_AGE, INGEST_AGE     each node's age public key, from `secrets.fish age-key` on that node
+#   HUB_AGE, INGEST_AGE     each node's age public key, from `secrets.fish age-key` on that node,
+#                           or `ssh` for one derived from its SSH host key in KNOWN_HOSTS (NixOS
+#                           nodes with sops-nix; ssh to the node once first)
 #   FORCE=1                 replace existing files without asking
 
 function env_or -a var fallback
@@ -26,6 +28,7 @@ set age_key_file (env_or AGE_KEY_FILE (env_or XDG_CONFIG_HOME $HOME/.config)/bbr
 set admin_age_key_file (env_or SOPS_AGE_KEY_FILE (env_or XDG_CONFIG_HOME $HOME/.config)/sops/age/keys.txt)
 set ca_days (env_or CA_DAYS 1825)
 set node_days (env_or NODE_DAYS 365)
+set known_hosts (env_or KNOWN_HOSTS $HOME/.ssh/known_hosts)
 
 function die
     echo "error: $argv" >&2
@@ -80,6 +83,15 @@ function age_key
     end
     say "age public key of this node (give it to whoever runs secrets.fish init):"
     age-keygen -y $age_key_file
+end
+
+# from known_hosts rather than ssh-keyscan, so the key is one this machine already trusts
+function ssh_age -a addr
+    need ssh-keygen ssh-to-age
+    set -l key (ssh-keygen -F $addr -f $known_hosts 2>/dev/null |
+        string match -rg '^\S+\s+(ssh-ed25519\s.*)')
+    set -q key[1]; or die "no ssh-ed25519 host key for $addr in $known_hosts; ssh to it once first"
+    echo $key[1] | ssh-to-age; or die "cannot derive an age key from the host key of $addr"
 end
 
 function new_ca -a name
@@ -143,8 +155,10 @@ function init
 
     ask HUB_ADDR "hub address (IP or hostname its distribution listens on)" '^[A-Za-z0-9.:-]+$'
     ask INGEST_ADDR "ingest node address" '^[A-Za-z0-9.:-]+$'
-    ask HUB_AGE "hub age public key (run 'make age-key' on the hub)" '^age1[a-z0-9]+$'
-    ask INGEST_AGE "ingest node age public key (run 'make age-key' on the ingest node)" '^age1[a-z0-9]+$'
+    ask HUB_AGE "hub age public key (run 'make age-key' on the hub, or 'ssh' for its host key)" '^(age1[a-z0-9]+|ssh)$'
+    ask INGEST_AGE "ingest node age public key (run 'make age-key' on the ingest node, or 'ssh' for its host key)" '^(age1[a-z0-9]+|ssh)$'
+    test $HUB_AGE = ssh; and set HUB_AGE (ssh_age $HUB_ADDR)
+    test $INGEST_AGE = ssh; and set INGEST_AGE (ssh_age $INGEST_ADDR)
     test $HUB_AGE != $INGEST_AGE; or die "the hub and the ingest node need their own age keys"
 
     set -l existing $secrets_dir/*.crt $secrets_dir/*.enc.yaml $ca_dir/*.key
@@ -313,6 +327,6 @@ switch "$argv[1]"
     case check
         check
     case '*'
-        sed -n '2,12p' (status filename) | sed 's/^# \{0,1\}//'
+        sed -n '2,15p' (status filename) | sed 's/^# \{0,1\}//'
         exit 1
 end
