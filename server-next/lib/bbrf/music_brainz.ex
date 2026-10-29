@@ -51,6 +51,8 @@ defmodule BBRF.MusicBrainz do
 
   def base_url, do: Env.str("MUSICBRAINZ_BASE_URL", @default_base_url)
 
+  def interval_ms, do: Env.int("MUSICBRAINZ_INTERVAL_MS", 1_000)
+
   @doc """
   One entity by MBID, nil when MusicBrainz has none.
 
@@ -153,7 +155,7 @@ defmodule BBRF.MusicBrainz do
   defp encode(value), do: URI.encode(value, &URI.char_unreserved?/1)
 
   defp wait_for_slot do
-    slot = claim_slot(slots(), Env.int("MUSICBRAINZ_INTERVAL_MS", 1_000))
+    slot = claim_slot(slots(), interval_ms())
     Process.sleep(max(slot - System.monotonic_time(:millisecond), 0))
   end
 

@@ -10,13 +10,13 @@ defmodule BBRF.Ingester.Track do
 
   Every TRACK_CYCLE_MINUTES a wave asks the configured
   `BBRF.Ingester.Track.Strategy` which stations to check, fetches them
-  with bounded concurrency and one shared deadline, classifies each
-  result and stores it, asking the strategy when each station is due
-  again. Stations the deadline cuts off are left untouched.
+  in the `:wave` lane of `BBRF.Ingester.WorkQueue` under one shared
+  deadline, classifies each result and stores it, asking the strategy
+  when each station is due again. Stations the deadline cuts off are
+  left untouched.
 
-  Every fetch is one lightweight BEAM process under the wave's task
-  supervisor; a host that hangs past the per-check cap is killed and
-  counted as a failure.
+  Every fetch is one lightweight BEAM process; a host that hangs past the
+  per-check cap is killed and counted as a failure.
 
   What a check finds sets the station's state, whichever strategy runs:
 
@@ -29,6 +29,7 @@ defmodule BBRF.Ingester.Track do
 
   require Logger
   alias BBRF.{Env, IngestStat, RadioBrowser, Repo, TrackObservation}
+  alias BBRF.Ingester.WorkQueue
   alias BBRF.Ingester.Track.Strategy
 
   @fail_threshold 3
@@ -71,7 +72,6 @@ defmodule BBRF.Ingester.Track do
   @no_status_page_codes [403, 404]
 
   def wave_interval_minutes, do: Env.int("TRACK_CYCLE_MINUTES", 1)
-  def wave_concurrency, do: Env.int("WAVE_CONCURRENCY", 56)
   def wave_deadline_seconds, do: Env.int("WAVE_DEADLINE_SECONDS", 60)
   def wave_max_stations, do: Env.int("WAVE_MAX_STATIONS", 10_000)
 
@@ -598,21 +598,15 @@ defmodule BBRF.Ingester.Track do
   # Wave execution
   # ---------------------------------------------------------------------------
 
-  # one process per fetch; nolink so a crashing fetch surfaces as
-  # {:exit, {station, reason}} instead of taking down the wave. Results
-  # arrive as they finish; once the deadline passes, consuming stops and
-  # async_stream kills whatever is still in flight.
+  # once the deadline passes, consuming stops and the work queue drops
+  # what is still queued and kills whatever is in flight
   defp run_wave(batch, deadline_ms) do
-    Task.Supervisor.async_stream_nolink(
-      BBRF.Ingester.WaveSup,
+    WorkQueue
+    |> WorkQueue.async_stream(
+      :wave,
       batch,
       fn station -> {station, fetch_observation(station)} end,
-      max_concurrency: wave_concurrency(),
-      timeout: @task_timeout_ms,
-      on_timeout: :kill_task,
-      shutdown: :brutal_kill,
-      ordered: false,
-      zip_input_on_exit: true
+      timeout: @task_timeout_ms
     )
     |> Enum.reduce_while([], fn element, results ->
       results = [wave_result(element) | results]

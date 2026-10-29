@@ -2,7 +2,7 @@ defmodule BBRF.Ingester.TrackWaveTest do
   use ExUnit.Case, async: false
 
   alias BBRF.{Metatable, Repo}
-  alias BBRF.Ingester.{Stations, Track}
+  alias BBRF.Ingester.{Stations, Track, WorkQueue}
   alias BBRF.Ingester.Track.Strategy
 
   @adaptive Strategy.new("adaptive",
@@ -144,5 +144,33 @@ defmodule BBRF.Ingester.TrackWaveTest do
     )
 
     assert station_row("station-1") == ["ok", 0, "Artist - Song", "2026-11-01T00:00:00.000000Z"]
+  end
+
+  test "poll_wave fetches the selected stations through the work queue" do
+    start_supervised!({WorkQueue, lanes: [wave: []]})
+
+    status_page = fn conn, _opts ->
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(
+        200,
+        Jason.encode!(%{icestats: %{source: %{title: "Artist - Song"}}})
+      )
+    end
+
+    server =
+      start_supervised!({Bandit, plug: status_page, ip: :loopback, port: 0, startup_log: false})
+
+    {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
+    url = "http://127.0.0.1:#{port}/live"
+
+    Stations.upsert([
+      Metatable.station(%{"stationuuid" => "playing", "url" => url, "url_resolved" => url})
+    ])
+
+    assert %{row_count: 1, inserted: 1} = Track.poll_wave(@adaptive)
+
+    assert %{rows: [["playing", "Artist - Song"]]} =
+             Repo.query!("SELECT stationuuid, raw_title FROM track_observations")
   end
 end

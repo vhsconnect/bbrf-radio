@@ -16,19 +16,30 @@ defmodule BBRF.Ingester do
     * retention (every PRUNE_HOURS, default 24): delete track observations
       older than RETENTION_DAYS (default 365) and return the space to the OS
 
+  Their I/O runs in the lanes of `BBRF.Ingester.WorkQueue`, which hands
+  its WORK_SLOTS out by lane priority (`lanes/0`).
+
   `BBRF.Ingester.Report` logs what they did every REPORT_SECONDS.
   """
 
   alias BBRF.Env
-  alias BBRF.Ingester.{Catalogue, RecentPolls, Report, Scheduler, Track}
+  alias BBRF.Ingester.{Catalogue, RecentPolls, Report, Scheduler, Track, WorkQueue}
   alias BBRF.Ingester.Track.Strategy
 
   def prune_hours, do: Env.int("PRUNE_HOURS", 24)
 
+  @doc "The work queue lanes, highest priority first."
+  def lanes do
+    [
+      wave: [],
+      # MusicBrainz serves one request per second per IP
+      musicbrainz: [max_concurrency: 1, interval_ms: BBRF.MusicBrainz.interval_ms()]
+    ]
+  end
+
   def children(strategy) do
     [
-      # one process per station fetch during a wave
-      {Task.Supervisor, name: BBRF.Ingester.WaveSup},
+      {WorkQueue, lanes: lanes()},
       Report,
       {Scheduler,
        name: BBRF.Ingester.Scheduler.Catalogue,
@@ -69,7 +80,8 @@ defmodule BBRF.Ingester do
         - catalogue sync every #{Catalogue.interval_hours()}h
         - changes poll every #{RecentPolls.changes_interval_minutes()} min, clicks poll every #{RecentPolls.clicks_interval_minutes()} min
         - track waves every #{Track.wave_interval_minutes()} min using #{Strategy.describe(strategy)}
-          (deadline #{Track.wave_deadline_seconds()}s, max #{Track.wave_max_stations()} stations, concurrency #{Track.wave_concurrency()})
+          (deadline #{Track.wave_deadline_seconds()}s, max #{Track.wave_max_stations()} stations)
+        - work queue: #{WorkQueue.slots()} slots, lanes #{lanes() |> Keyword.keys() |> Enum.join(" > ")}
         - prune every #{prune_hours()}h (retention #{Track.retention_days()} days)
         - report every #{Env.int("REPORT_SECONDS", 10)} s\
     """

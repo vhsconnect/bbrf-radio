@@ -36,12 +36,13 @@ Environment:
 - api: `PORT` (4881); `STATIC_DIR` (`static`) directory holding `index.html`, `index.js`, `styles.css`, `favicon-16x16.png`; `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000), `TRACKS_PER_PAGE` (200) for `/tracks`
 - `FAVORITES_IMPORT_FILE` optional path to a node server `storage.json`; imported only while the favorites table is empty
 - `RADIO_BROWSER_BASE_URL` pins a radio-browser server; unset, a mirror is picked from `all.api.radio-browser.info`
-- `MUSICBRAINZ_BASE_URL` (`https://musicbrainz.org/ws/2`) ws/2 endpoint `BBRF.MusicBrainz` calls; `MUSICBRAINZ_INTERVAL_MS` (1000) gap between its requests, across all processes
+- `MUSICBRAINZ_BASE_URL` (`https://musicbrainz.org/ws/2`) ws/2 endpoint `BBRF.MusicBrainz` calls; `MUSICBRAINZ_INTERVAL_MS` (1000) gap between its requests, across all processes, and between job starts in the work queue's `musicbrainz` lane
 - ingester:
   - `FULL_SYNC_HOURS` (168) age of the last full catalogue sync before the next one runs
   - `CHANGES_POLL_MINUTES` (10) how often `stations/lastchange` is polled for added and edited stations
   - `CLICKS_POLL_MINUTES` (360) how often `stations/lastclick` is polled to refresh click and check data
-  - `TRACK_CYCLE_MINUTES` (1), `WAVE_DEADLINE_SECONDS` (60), `WAVE_CONCURRENCY` (56), `WAVE_MAX_STATIONS` (10000) track waves
+  - `WORK_SLOTS` (56) jobs running at once across all workloads, handed out by lane priority (`BBRF.Ingester.lanes/0`)
+  - `TRACK_CYCLE_MINUTES` (1), `WAVE_DEADLINE_SECONDS` (60), `WAVE_MAX_STATIONS` (10000) track waves
   - `TRACK_STRATEGY` (`full-sweep`) how waves cycle through the stations, `adaptive` or `full-sweep` (below). Any other value stops the boot
   - `full-sweep` options: `SWEEP_CYCLE_MINUTES` (60) how long one pass over the rotation should take; `SWEEP_RETRIES_PER_WAVE` (500) back-off retries per wave
   - `adaptive` options: `DISCOVERY_PER_WAVE` (500) stations without a known method probed per wave, which bounds the cpu a backlog of them costs; `ICY_INTERVAL_MINUTES` (60) shortest interval between checks of a station read over ICY; `POPULAR_CLICKCOUNT` (20) stations below it refresh at half the rate
