@@ -29,6 +29,18 @@ const playedAt = (track: Track) =>
     minute: '2-digit',
   })
 
+const MAX_TAGS_LENGTH = 50
+
+// Always shows the first tag, even if it alone exceeds the limit
+const shownTags = (tags: ReadonlyArray<string>) => {
+  const fitCount = tags.findIndex(
+    (_, i) => i > 0 && tags.slice(0, i + 1).join(', ').length > MAX_TAGS_LENGTH
+  )
+  return fitCount === -1
+    ? tags.join(', ')
+    : `${tags.slice(0, fitCount).join(', ')}, ...`
+}
+
 const FIRST_DIRECTION = {
   played: 'desc',
   country: 'asc',
@@ -131,7 +143,7 @@ const Tracklist = ({
                 className="tracklist-tags"
                 title={track.station.tags.join(', ')}
               >
-                <span>{track.station.tags.join(', ')}</span>
+                <span>{shownTags(track.station.tags)}</span>
               </td>
             </tr>
           ))}

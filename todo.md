@@ -1,5 +1,8 @@
 # To do
 
+## Features 
+- [ ] move horizontal and veritcally through the favorites with directions.
+
 ## Hub and ingest
 
 - [ ] **`GET /sync` on the hub**: when the last sync arrived, from which node, and how much history the hub holds (oldest and newest observation, row count).
