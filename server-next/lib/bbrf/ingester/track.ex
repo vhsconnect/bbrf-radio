@@ -28,7 +28,7 @@ defmodule BBRF.Ingester.Track do
   """
 
   require Logger
-  alias BBRF.{Env, IngestStat, RadioBrowser, Repo, TrackObservation}
+  alias BBRF.{ArtistCredit, Env, IngestStat, RadioBrowser, Repo, TrackObservation}
   alias BBRF.Ingester.WorkQueue
   alias BBRF.Ingester.Track.Strategy
 
@@ -365,8 +365,8 @@ defmodule BBRF.Ingester.Track do
 
   defp build_observation(stationuuid, source) do
     raw_title = source |> title_from() |> trimmed_or_nil()
-    icecast_artist = source |> Map.get("artist") |> trimmed_or_nil()
     parsed = parse_title(raw_title)
+    artist = source |> Map.get("artist") |> trimmed_or_nil() || parsed[:artist]
 
     metadata =
       source
@@ -382,7 +382,8 @@ defmodule BBRF.Ingester.Track do
       stationuuid: stationuuid,
       observed_at: DateTime.to_iso8601(DateTime.utc_now()),
       raw_title: raw_title,
-      artist: icecast_artist || parsed[:artist],
+      artist: artist,
+      artist_credit_id: ArtistCredit.id(artist),
       title: parsed[:title],
       metadata: metadata
     }

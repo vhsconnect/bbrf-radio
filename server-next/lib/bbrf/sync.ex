@@ -1,7 +1,7 @@
 defmodule BBRF.Sync do
   @moduledoc """
-  Copies the ingest node's stations and track history into the hub's
-  database over Erlang distribution. Both databases have the same
+  Copies the ingest node's stations, artist catalogue and track history
+  into the hub's database over Erlang distribution. Both databases have the same
   schema; the hub keeps its own window of history (its RETENTION_DAYS)
   and prunes it like the ingester does.
 
@@ -14,8 +14,10 @@ defmodule BBRF.Sync do
        with its highest observation id and the oldest observation time
        its retention keeps
     3. upserts every station
-    4. sends the observations newer than both, by id
-    5. disconnects
+    4. upserts the whole artist catalogue, parents before the rows
+       referencing them
+    5. sends the observations newer than both, by id
+    6. disconnects
 
   Rows go in batches, one call each, so the hub sets the pace and writes
   in short transactions. A sync that breaks off resumes from the hub's
@@ -34,6 +36,7 @@ defmodule BBRF.Sync do
   alias BBRF.Sync.Receiver
 
   @endpoint "sync"
+  @catalogue ~w(artists artist_tags artist_aliases artist_links artist_credits artist_credit_artists)
   @call_timeout 60_000
   # SQLite binds at most 32766 parameters per statement
   @max_params 32_000
@@ -116,8 +119,9 @@ defmodule BBRF.Sync do
       with :ok <- connect(hub),
            {:ok, %{cursor: cursor, since: since}} <- call(hub, {:hello, schema_version()}),
            {:ok, stations} <- push_table(hub, "stations", 0),
+           {:ok, artists} <- push_catalogue(hub),
            {:ok, observations} <- push_table(hub, "track_observations", first_id(cursor, since)) do
-        {:ok, %{stations: stations, observations: observations}}
+        {:ok, %{stations: stations, artists: artists, observations: observations}}
       end
 
     disconnect(hub)
@@ -174,6 +178,16 @@ defmodule BBRF.Sync do
       Repo.query!("SELECT MIN(id) FROM track_observations WHERE observed_at >= ?", [since])
 
     if first, do: max(cursor, first - 1), else: cursor
+  end
+
+  # every catalogue table whole, as a total row count
+  defp push_catalogue(hub) do
+    Enum.reduce_while(@catalogue, {:ok, 0}, fn table, {:ok, sent} ->
+      case push_table(hub, table, 0) do
+        {:ok, rows} -> {:cont, {:ok, sent + rows}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   # rows after `after_rowid` in rowid order (an observation's rowid is its

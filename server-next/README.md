@@ -46,6 +46,7 @@ Environment:
   - `TRACK_STRATEGY` (`full-sweep`) how waves cycle through the stations, `adaptive` or `full-sweep` (below). Any other value stops the boot
   - `full-sweep` options: `SWEEP_CYCLE_MINUTES` (60) how long one pass over the rotation should take; `SWEEP_RETRIES_PER_WAVE` (500) back-off retries per wave
   - `adaptive` options: `DISCOVERY_PER_WAVE` (500) stations without a known method probed per wave, which bounds the cpu a backlog of them costs; `ICY_INTERVAL_MINUTES` (60) shortest interval between checks of a station read over ICY; `POPULAR_CLICKCOUNT` (20) stations below it refresh at half the rate
+  - `ARTIST_RESOLVE_MINUTES` (10), `ARTIST_RESOLVE_BATCH` (300) how often and how many artist credits are resolved through MusicBrainz; a batch of 0 turns it off
   - `POLL_LIMIT`, `PRUNE_HOURS`, `RETENTION_DAYS`, `REPORT_SECONDS`
 
 ## Ingester
@@ -54,6 +55,7 @@ Environment:
 - **changes** polls `stations/lastchange` between full syncs, which is where added and edited stations show up; an edited station is reset and checked again right away
 - **clicks** polls `stations/lastclick`, which only refreshes click and check data once the catalogue is complete, so it runs every few hours
 - **track waves** read the now-playing title of the stations the strategy picks: the icecast `status-json.xsl` first, then the stream's in-band ICY metadata when that has no title. ICY reads one metadata interval of audio (typically 16 KB) per check
+- **artists** resolves the artist credits observations carry (`artist_credit_id`, a hash of the normalized artist string) to MusicBrainz artists, most played first, one request a second. A credit links to its artists in `artist_credit_artists`; each artist's profile is stored flattened in `artists`, `artist_tags`, `artist_aliases` and `artist_links`. Credits that do not resolve (ads, placeholders) are tried again after 7 days, then every 30
 - **prune** deletes observations older than `RETENTION_DAYS`
 
 ### Track strategies

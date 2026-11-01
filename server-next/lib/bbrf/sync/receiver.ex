@@ -5,8 +5,9 @@ defmodule BBRF.Sync.Receiver do
 
   It answers only processes on SYNC_INGEST_NODE (nobody when unset),
   only when both databases are at the same migration, and only writes
-  `stations` (upserted) and `track_observations` (rows it already has
-  are left alone) with exactly the columns its own tables have.
+  `stations` and the artist catalogue (upserted) and `track_observations`
+  (rows it already has are left alone) with exactly the columns its own
+  tables have.
 
   Options: `:ingest_node` overrides SYNC_INGEST_NODE, and `:repo` makes
   it write to a dynamic repo (the tests run both ends on one node).
@@ -17,7 +18,18 @@ defmodule BBRF.Sync.Receiver do
   alias BBRF.{Repo, Sync}
   alias BBRF.Ingester.Track
 
-  @tables ~w(stations track_observations)
+  # the key each upserted table is matched on
+  @keys %{
+    "stations" => ~w(stationuuid),
+    "artists" => ~w(mbid),
+    "artist_tags" => ~w(artist_mbid tag),
+    "artist_aliases" => ~w(artist_mbid alias),
+    "artist_links" => ~w(artist_mbid url),
+    "artist_credits" => ~w(id),
+    "artist_credit_artists" => ~w(artist_credit_id position)
+  }
+
+  @tables ["track_observations" | Map.keys(@keys)]
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -91,12 +103,14 @@ defmodule BBRF.Sync.Receiver do
     )
   end
 
-  defp on_conflict("stations", columns) do
-    "ON CONFLICT (stationuuid) DO UPDATE SET " <>
-      Enum.map_join(columns -- ["stationuuid"], ", ", &~s("#{&1}" = excluded."#{&1}"))
-  end
-
   defp on_conflict("track_observations", _columns), do: "ON CONFLICT (id) DO NOTHING"
+
+  defp on_conflict(table, columns) do
+    keys = @keys[table]
+
+    "ON CONFLICT (#{Enum.map_join(keys, ", ", &~s("#{&1}"))}) DO UPDATE SET " <>
+      Enum.map_join(columns -- keys, ", ", &~s("#{&1}" = excluded."#{&1}"))
+  end
 
   defp elem_name(message) when is_tuple(message), do: inspect(elem(message, 0))
   defp elem_name(message), do: inspect(message)

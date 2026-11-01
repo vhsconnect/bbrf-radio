@@ -54,7 +54,7 @@ defmodule BBRF.SyncTest do
   defp tracks(repo), do: on(repo, fn -> History.tracks([], "played", "desc", 50, 0) end)
 
   test "copies the stations and the track history into the hub", ctx do
-    assert Sync.sync(node()) == {:ok, %{stations: 2, observations: 2}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 2}}
 
     assert tracks(ctx.hub) == tracks(ctx.ingest)
     assert ctx.hub |> on(fn -> History.search("halo", 50, 0) end) |> length() == 2
@@ -71,11 +71,47 @@ defmodule BBRF.SyncTest do
       Repo.insert_all(TrackObservation, [Metatable.observation(%{title: "Encore"})])
     end)
 
-    assert Sync.sync(node()) == {:ok, %{stations: 2, observations: 1}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 1}}
     assert tracks(ctx.hub) == tracks(ctx.ingest)
 
     assert ctx.hub |> tracks() |> Enum.map(& &1["station"]["name"]) |> Enum.uniq() |> Enum.sort() ==
              ["Another FM", "Renamed FM"]
+  end
+
+  test "copies the artist catalogue and updates it on the next sync", ctx do
+    artist = fn name ->
+      on(ctx.ingest, fn ->
+        Repo.query!(
+          "INSERT INTO artists (mbid, name, fetched_at) VALUES ('mbid-1', ?, '2026-10-29') " <>
+            "ON CONFLICT (mbid) DO UPDATE SET name = excluded.name",
+          [name]
+        )
+      end)
+    end
+
+    artist.("Beyonce")
+
+    on(ctx.ingest, fn ->
+      Repo.query!(
+        "INSERT INTO artist_credits (id, name, status, attempts, checked_at) VALUES (1, 'Beyoncé', 'resolved', 1, '2026-10-29')"
+      )
+
+      Repo.query!(
+        "INSERT INTO artist_credit_artists (artist_credit_id, position, artist_mbid) VALUES (1, 0, 'mbid-1')"
+      )
+    end)
+
+    assert {:ok, %{artists: 3}} = Sync.sync(node())
+
+    artist.("Beyoncé")
+    assert {:ok, %{artists: 3}} = Sync.sync(node())
+
+    assert %{rows: [["Beyoncé", 0]]} =
+             on(ctx.hub, fn ->
+               Repo.query!(
+                 "SELECT a.name, ca.position FROM artist_credit_artists ca JOIN artists a ON a.mbid = ca.artist_mbid"
+               )
+             end)
   end
 
   test "leaves out observations older than the hub keeps", ctx do

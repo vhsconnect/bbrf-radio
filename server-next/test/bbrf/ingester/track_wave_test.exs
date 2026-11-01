@@ -170,7 +170,11 @@ defmodule BBRF.Ingester.TrackWaveTest do
 
     assert %{row_count: 1, inserted: 1} = Track.poll_wave(@adaptive)
 
-    assert %{rows: [["playing", "Artist - Song"]]} =
-             Repo.query!("SELECT stationuuid, raw_title FROM track_observations")
+    assert %{rows: [["playing", "Artist - Song", credit]]} =
+             Repo.query!(
+               "SELECT stationuuid, raw_title, artist_credit_id FROM track_observations"
+             )
+
+    assert credit == BBRF.ArtistCredit.id("Artist")
   end
 end
