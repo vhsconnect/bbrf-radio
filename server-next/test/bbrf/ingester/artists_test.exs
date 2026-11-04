@@ -153,11 +153,18 @@ defmodule BBRF.Ingester.ArtistsTest do
         body =
           case conn.request_path do
             "/ws/2/recording" ->
-              if conn.query_params["query"] =~ "Halo",
-                do: Metatable.mb_recordings([{100, [{"Beyoncé", "mbid-beyonce", ""}]}]),
-                else: Metatable.mb_recordings([])
+              cond do
+                conn.query_params["query"] =~ "Halo" ->
+                  Metatable.mb_recordings([{100, [{"Beyoncé", "mbid-beyonce", ""}]}])
 
-            "/ws/2/artist/mbid-beyonce" ->
+                conn.query_params["query"] =~ "Irreplaceable" ->
+                  Metatable.mb_recordings([{100, [{"Beyoncé", "mbid-merged", ""}]}])
+
+                true ->
+                  Metatable.mb_recordings([])
+              end
+
+            path when path in ["/ws/2/artist/mbid-beyonce", "/ws/2/artist/mbid-merged"] ->
               Metatable.mb_artist()
           end
 
@@ -214,6 +221,16 @@ defmodule BBRF.Ingester.ArtistsTest do
       assert_received {:request, "/ws/2/recording"}
       refute_received {:request, "/ws/2/artist/mbid-beyonce"}
       assert rows("SELECT COUNT(*) FROM artist_credit_artists") == [[2]]
+    end
+
+    test "links a credit to the artist a merged mbid now points to" do
+      play("Beyoncé", "Irreplaceable", 2)
+      play("Beyoncé feat. Nobody", "Halo")
+
+      assert %{inserted: 2, error: nil} = Artists.resolve_due()
+
+      assert rows("SELECT DISTINCT artist_mbid FROM artist_credit_artists") == [["mbid-beyonce"]]
+      assert rows("SELECT mbid FROM artists") == [["mbid-beyonce"]]
     end
   end
 end

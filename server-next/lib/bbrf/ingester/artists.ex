@@ -45,7 +45,7 @@ defmodule BBRF.Ingester.Artists do
           timeout: @job_timeout_ms
         )
         |> Enum.reduce(%{}, fn element, counts ->
-          Map.update(counts, store(element, DateTime.utc_now()), 1, &(&1 + 1))
+          Map.update(counts, store_or_fail(element, DateTime.utc_now()), 1, &(&1 + 1))
         end)
 
       count = &Map.get(counts, &1, 0)
@@ -120,21 +120,26 @@ defmodule BBRF.Ingester.Artists do
 
     with artists when artists != nil <-
            match(name, MusicBrainz.search(:recording, query, limit: 5)),
-         profiles when profiles != nil <- new_profiles(artists) do
-      {:resolved, artists, profiles}
+         {profiles, merged} <- new_profiles(artists) do
+      {:resolved, Enum.map(artists, &follow_merge(&1, merged)), profiles}
     else
       nil -> :unresolved
     end
   end
 
-  # nil when an artist has no profile (merged away since the search)
+  defp follow_merge(artist, merged),
+    do: Map.update!(artist, :artist_mbid, &Map.get(merged, &1, &1))
+
+  # nil when an artist has no profile. A lookup of a merged mbid answers with the artist it was
+  # merged into, so `merged` maps the searched mbid to the one the profile is stored under
   defp new_profiles(artists) do
     mbids = artists |> Enum.map(& &1.artist_mbid) |> Enum.uniq()
 
-    Enum.reduce_while(mbids -- known(mbids), [], fn mbid, profiles ->
+    Enum.reduce_while(mbids -- known(mbids), {[], %{}}, fn mbid, {profiles, merged} ->
       case MusicBrainz.lookup(:artist, mbid, inc: @profile_inc) do
         nil -> {:halt, nil}
-        profile -> {:cont, [flatten(profile) | profiles]}
+        %{"id" => ^mbid} = profile -> {:cont, {[flatten(profile) | profiles], merged}}
+        profile -> {:cont, {[flatten(profile) | profiles], Map.put(merged, mbid, profile["id"])}}
       end
     end)
   end
@@ -254,6 +259,18 @@ defmodule BBRF.Ingester.Artists do
   # ---------------------------------------------------------------------------
   # Storage
   # ---------------------------------------------------------------------------
+
+  # one credit that cannot be stored must not end the round for the credits after it
+  defp store_or_fail({_, {credit, _}} = element, now) do
+    store(element, now)
+  rescue
+    exception ->
+      Logger.warning(
+        "artist credit #{inspect(credit.name)} not stored: #{Exception.message(exception)}"
+      )
+
+      :failed
+  end
 
   @doc "Store what resolving one credit found; returns :resolved, :unresolved or :failed."
   def store({:ok, {credit, {:resolved, artists, profiles}}}, now) do
