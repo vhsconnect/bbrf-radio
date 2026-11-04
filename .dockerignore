@@ -13,4 +13,9 @@ scratch
 .prettierrc*
 pages/
 scripts/
+!scripts/launch.fish
+secrets/
 .DS_Store
+server-next/_build
+server-next/deps
+server-next/data

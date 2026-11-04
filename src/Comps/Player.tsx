@@ -68,6 +68,7 @@ const Player = ({
     current,
     defaultMessage,
     setStatusStack,
+    api,
   })
 
   return current ? (

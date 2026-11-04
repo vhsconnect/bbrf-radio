@@ -4,20 +4,27 @@ import { Effect, Option, Schema, pipe } from 'effect'
 import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
+import usePagination from '../hooks/usePagination'
 import radioL from '../utils/radioModel'
 import { discoverRadioBrowserApiUrl } from '../utils/radioBrowserDiscovery'
 import { request } from '../utils/httpHandlers'
 import { radioApi } from '../../server/api/radioBrowser.mjs'
 import { userAgent } from '../../server/userAgent.mjs'
 import { addFavorite, getFavorites, removeFavorite } from '../utils/urlWriter'
-import type { Radio, RadioCollection } from '../types'
-import { RadioApiUpstreamSchema, RadioCollectionSchema } from '../types'
+import type { Radio, RadioCollection, TrackSort, Tracklisting } from '../types'
+import {
+  RadioApiUpstreamSchema,
+  RadioCollectionSchema,
+  TracklistingSchema,
+} from '../types'
 import Flag from './Flag'
 import DeleteFaultyStation from './DeleteFaultyStation'
 import Teleprompt from './Teleprompt'
 import Player from './Player'
 import Button from './Button'
+import Toggle from './Toggle'
 import RadioList from './RadioList'
+import Tracklist from './Tracklist'
 
 const DEFAULT_FADER_VALUE = 25
 const DEFAULT_RESULT_LIMIT = 2000
@@ -26,6 +33,24 @@ interface Props {
   serverMode: boolean
   radioBrowserApiUrl: string | null
 }
+
+export type SearchField = 'tag' | 'countrycode' | 'name' | 'track'
+
+export type Mode = 'radio' | 'tracks'
+
+const MODES = [
+  { value: 'radio', text: 'radio' },
+  { value: 'tracks', text: 'tracks' },
+] as const
+
+const TRACK_FILTER_PARAMS = {
+  tag: 'tag',
+  countrycode: 'countrycode',
+  name: 'station',
+  track: 'q',
+} as const satisfies Record<SearchField, string>
+
+type Search = { searchField: SearchField; value: string }
 
 export type Api = {
   favorites: () => Effect.Effect<RadioCollection, UnknownException, never>
@@ -36,24 +61,36 @@ export type Api = {
     uuid: string
   ) => Effect.Effect<RadioCollection, UnknownException, never>
   searchField: (
-    searchField: string,
+    searchField: SearchField,
     value: string,
     currentOffset: number
   ) => Effect.Effect<RadioCollection, UnknownException, never>
   fader: () => Effect.Effect<number, number, never>
   radioServer: () => Effect.Effect<Option.Option<string>, never, never>
   clicked: (uuid: string) => Effect.Effect<unknown, never, never>
+  tracks: (
+    search: Search | undefined,
+    sort: TrackSort,
+    currentOffset: number
+  ) => Effect.Effect<Tracklisting, UnknownException, never>
+  nowPlaying: (uuid: string) => Promise<string | undefined>
 }
 
 export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [channels, setChannels] = React.useState<RadioCollection>([])
+  const [tracks, setTracks] = React.useState<Tracklisting>([])
+  const [trackSort, setTrackSort] = React.useState<TrackSort>({
+    column: 'played',
+    dir: 'desc',
+  })
   const [tag, setTag] = React.useState<string>('')
   const [countrycode, setCountrycode] = React.useState<string>('')
   const [name, setName] = React.useState<string>('')
+  const [track, setTrack] = React.useState<string>('')
   const [favorites, setFavorites] = React.useState<RadioCollection>([])
   const [stationController, setStationController] = React.useState(radioL())
   const [lockStations, setLockStations] = React.useState<boolean>(false)
-  const [currentOffset, setCurrentOffset] = React.useState<number>(0)
+  const [mode, setMode] = React.useState<Mode>('radio')
   const [radioServer, setRadioServer] = React.useState<
     string | undefined | null
   >('')
@@ -88,14 +125,16 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           })
         ),
       searchField: (
-        searchField: string,
+        searchField: SearchField,
         value: string,
         currentOffset: number
       ) =>
         Effect.tryPromise(() =>
-          request(`/by${searchField}/${value}?offset=${currentOffset}`).then(
-            Schema.decodeUnknownPromise(RadioCollectionSchema)
-          )
+          request(
+            `/by${searchField}/${encodeURIComponent(
+              value
+            )}?offset=${currentOffset}`
+          ).then(Schema.decodeUnknownPromise(RadioCollectionSchema))
         ),
       addFavorite: (radioPayload: Radio) =>
         Effect.tryPromise(() =>
@@ -122,6 +161,33 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         ),
       clicked: (uuid: string) =>
         Effect.promise(() => request(`/clicked/${uuid}`)),
+      tracks: (
+        search: Search | undefined,
+        sort: TrackSort,
+        currentOffset: number
+      ) =>
+        Effect.tryPromise(() =>
+          request(
+            `/tracks?${[
+              ['sort', sort.column],
+              ['dir', sort.dir],
+              ['offset', String(currentOffset)],
+              ...(search
+                ? [[TRACK_FILTER_PARAMS[search.searchField], search.value]]
+                : []),
+            ]
+              .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+              .join('&')}`
+          ).then(Schema.decodeUnknownPromise(TracklistingSchema))
+        ),
+      nowPlaying: (uuid: string) =>
+        fetch(`/nowplaying/${encodeURIComponent(uuid)}`)
+          .then(x => (x.status === 200 ? x.json() : undefined))
+          .then(x =>
+            x?.title
+              ? `${x.artist ? x.artist + ': ' : ''}${x.title}`
+              : x?.raw_title
+          ),
     },
     client: {
       favorites: () =>
@@ -132,7 +198,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
           Effect.mapError(() => DEFAULT_FADER_VALUE)
         ),
       searchField: (
-        searchField: string,
+        searchField: SearchField,
         value: string,
         currentOffset: number
       ) => {
@@ -158,7 +224,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                 currentOffset,
                 DEFAULT_RESULT_LIMIT
               )
-            : Promise.reject('unreacheable error')
+            : // UNSUPPORTED
+              Promise.resolve([])
 
         return Effect.tryPromise(() =>
           f.then(Schema.decodeUnknownPromise(RadioCollectionSchema))
@@ -187,6 +254,9 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         ),
       clicked: (uuid: string) =>
         Effect.promise(() => radioApi.clickStation(radioBrowserApiUrl, uuid)),
+      // server only
+      tracks: () => Effect.succeed<Tracklisting>([]),
+      nowPlaying: () => Promise.resolve(undefined),
     },
   }
 
@@ -208,11 +278,13 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const tagsInput = React.useRef(null)
   const ccInput = React.useRef(null)
   const nameInput = React.useRef(null)
+  const trackInput = React.useRef(null)
 
   useRegisterObservables({
     setTag,
     setCountrycode,
     setName,
+    setTrack,
     setFavorites,
     setChannels,
     messageUser,
@@ -225,59 +297,52 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     tagsInput,
     ccInput,
     nameInput,
+    trackInput,
   })
 
-  React.useEffect(() => {
-    messageUser('fetching...')
-    const searchField = tag
-      ? 'tag'
+  const activeSearch = (): Search | undefined =>
+    tag
+      ? { searchField: 'tag', value: tag }
       : countrycode
-      ? 'countrycode'
+      ? { searchField: 'countrycode', value: countrycode }
       : name
-      ? 'name'
+      ? { searchField: 'name', value: name }
+      : track
+      ? { searchField: 'track', value: track }
       : undefined
-    const value = tag || countrycode || name
-    if (searchField) {
-      setCurrentOffset(0)
-      Effect.runPromise(api.searchField(searchField, value, 0))
-        .then(setChannels)
-        .then(() => {
-          window.scrollTo({ top: 1, behavior: 'smooth' })
-        })
-        .then(() => messageUser('done'))
-        .catch(() =>
-          messageUser('Something went wrong! upstream might be down')
-        )
-    }
-  }, [tag, countrycode, name])
 
-  React.useEffect(() => {
-    const searchField = tag
-      ? 'tag'
-      : countrycode
-      ? 'countrycode'
-      : name
-      ? 'name'
-      : undefined
-    const value = tag || countrycode || name
-    // don't trigger on offset reset
-    if (searchField && currentOffset) {
-      messageUser('fetching...')
-      Effect.runPromise(api.searchField(searchField, value, currentOffset))
-        .then(
-          R.ifElse(
-            R.isEmpty,
-            () => messageUser('all radios have been fetched'),
-            R.pipe(R.concat<Radio>(channels), setChannels, () =>
-              messageUser('done')
-            )
-          )
-        )
-        .catch(() =>
-          messageUser('Something went wrong! upstream might be down')
-        )
-    }
-  }, [currentOffset])
+  const search = activeSearch()
+
+  const radioPages = usePagination({
+    fetchPage:
+      mode === 'radio' && search
+        ? (offset: number) =>
+            api.searchField(search.searchField, search.value, offset)
+        : undefined,
+    resetOn: [mode, tag, countrycode, name, track],
+    setItems: setChannels,
+    messageUser,
+    label: 'radios',
+  })
+
+  const trackPages = usePagination({
+    fetchPage:
+      mode === 'tracks'
+        ? (offset: number) => api.tracks(search, trackSort, offset)
+        : undefined,
+    resetOn: [
+      mode,
+      tag,
+      countrycode,
+      name,
+      track,
+      trackSort.column,
+      trackSort.dir,
+    ],
+    setItems: setTracks,
+    messageUser,
+    label: 'tracks',
+  })
 
   React.useEffect(() => {
     Effect.runPromise(
@@ -336,6 +401,15 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
               id="name"
               placeholder="by name"
             />
+            {serverMode && (
+              <input
+                ref={trackInput}
+                className="input-fields"
+                type="text"
+                id="track"
+                placeholder="by artist/track"
+              />
+            )}
             <Button
               text="favs"
               disabled={false}
@@ -346,6 +420,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                       setCountrycode('')
                       setTag('')
                       setName('')
+                      setTrack('')
+                      setMode('radio')
                     })
                   )
                   .then(setChannels)
@@ -353,6 +429,9 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                   .catch(() => messageUser("Couldn't fetch favorties"))
               }}
             />
+            {serverMode && (
+              <Toggle options={MODES} value={mode} onChange={setMode} />
+            )}
           </div>
           <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
             {userAgent.split(' ')[1]}
@@ -400,20 +479,32 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
         />
       </div>
       <div className="under-player">
-        <RadioList
-          channels={channels}
-          isFavsList={R.pipe(
-            R.reject(R.isEmpty),
-            R.isEmpty
-          )([name, countrycode, tag])}
-          lockStations={lockStations}
-          setStationController={setStation(lockStations)}
-          setLockStations={setLockStations}
-          setCurrentOffset={setCurrentOffset}
-          currentOffset={currentOffset}
-          radioFilter={radioFilter}
-          api={api}
-        />
+        {mode === 'tracks' ? (
+          <Tracklist
+            tracks={tracks}
+            sort={trackSort}
+            setSort={setTrackSort}
+            currentOffset={trackPages.currentOffset}
+            setCurrentOffset={trackPages.setCurrentOffset}
+            lockStations={lockStations}
+            setStationController={setStation(lockStations)}
+            setLockStations={setLockStations}
+            radioFilter={radioFilter}
+            api={api}
+          />
+        ) : (
+          <RadioList
+            channels={channels}
+            isFavsList={!search}
+            lockStations={lockStations}
+            setStationController={setStation(lockStations)}
+            setLockStations={setLockStations}
+            setCurrentOffset={radioPages.setCurrentOffset}
+            currentOffset={radioPages.currentOffset}
+            radioFilter={radioFilter}
+            api={api}
+          />
+        )}
         <div className="right-panel">
           {stationController.current && (
             <Flag countrycode={stationController.current?.countrycode} />

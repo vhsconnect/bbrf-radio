@@ -10,6 +10,7 @@ interface Props {
   setTag: (x: string) => void
   setName: (x: string) => void
   setCountrycode: (x: string) => void
+  setTrack: (x: string) => void
   setFavorites: (xs: Readonly<Radio[]>) => void
   setChannels: (xs: Readonly<Radio[]>) => void
   messageUser: (x: string) => void
@@ -20,64 +21,39 @@ export default ({
   setTag,
   setCountrycode,
   setName,
+  setTrack,
   setFavorites,
   setChannels,
   messageUser,
   api,
 }: Props) => {
   useEffect(() => {
-    const tagsObservable = fromEvent(
-      document.getElementById('tags') as HTMLInputElement,
-      'input'
-    )
-    const ccObservable = fromEvent(
-      document.getElementById('countrycode') as HTMLInputElement,
-      'input'
-    )
-    const nameObservable = fromEvent(
-      document.getElementById('name') as HTMLInputElement,
-      'input'
-    )
+    const fields = [
+      { id: 'tags', set: setTag },
+      { id: 'countrycode', set: setCountrycode },
+      { id: 'name', set: setName },
+      { id: 'track', set: setTrack },
+    ] as const
 
-    const d1 = tagsObservable
-      .pipe(debounceTime(1000))
-      .subscribe(e => setTag((e.target as HTMLInputElement).value))
-
-    const d2 = ccObservable
-      .pipe(debounceTime(1000))
-      .subscribe(e => setCountrycode((e.target as HTMLInputElement).value))
-
-    const d3 = nameObservable
-      .pipe(debounceTime(1000))
-      .subscribe(e => setName((e.target as HTMLInputElement).value))
-
-    const s1 = tagsObservable.subscribe(() => {
-      const countrycode = document.getElementById(
-        'countrycode'
-      ) as HTMLInputElement
-      const name = document.getElementById('name') as HTMLInputElement
-      name.value = ''
-      countrycode.value = ''
-      setCountrycode('')
-      setName('')
+    // the track input only renders in server mode
+    const rendered = fields.flatMap(({ id, set }) => {
+      const input = document.getElementById(id)
+      return input instanceof HTMLInputElement ? [{ input, set }] : []
     })
-    const s2 = ccObservable.subscribe(() => {
-      const tags = document.getElementById('tags') as HTMLInputElement
-      const name = document.getElementById('name') as HTMLInputElement
-      name.value = ''
-      tags.value = ''
-      setTag('')
-      setName('')
-    })
-    const s3 = nameObservable.subscribe(() => {
-      const tags = document.getElementById('tags') as HTMLInputElement
-      const countrycode = document.getElementById(
-        'countrycode'
-      ) as HTMLInputElement
-      tags.value = ''
-      countrycode.value = ''
-      setTag('')
-      setCountrycode('')
+
+    const subscriptions = rendered.flatMap(({ input, set }) => {
+      const typed = fromEvent(input, 'input')
+      return [
+        typed.pipe(debounceTime(1000)).subscribe(() => set(input.value)),
+        typed.subscribe(() =>
+          rendered
+            .filter(other => other.input !== input)
+            .forEach(other => {
+              other.input.value = ''
+              other.set('')
+            })
+        ),
+      ]
     })
 
     Effect.runPromise(api.favorites())
@@ -87,13 +63,7 @@ export default ({
         messageUser("Couldn't fetch favorites")
       })
 
-    return () => {
-      s1.unsubscribe()
-      s2.unsubscribe()
-      s3.unsubscribe()
-      d1.unsubscribe()
-      d2.unsubscribe()
-      d3.unsubscribe()
-    }
+    return () =>
+      subscriptions.forEach(subscription => subscription.unsubscribe())
   }, [])
 }

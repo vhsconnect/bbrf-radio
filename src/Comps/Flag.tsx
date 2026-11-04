@@ -1,24 +1,24 @@
 import React from 'react'
+import { flagUrl } from '../utils/flagCache'
 
 interface Props {
   countrycode: string
+  className?: string
 }
 
-export default function Flag({ countrycode }: Props) {
-  const [active, setActive] = React.useState(true)
+export default function Flag({ countrycode, className = 'flag' }: Props) {
+  const [src, setSrc] = React.useState<string | undefined>(undefined)
+
   React.useEffect(() => {
-    setActive(true)
+    let current = true
+    setSrc(undefined)
+    flagUrl(countrycode).then(url => {
+      if (current) setSrc(url)
+    })
+    return () => {
+      current = false
+    }
   }, [countrycode])
 
-  return active ? (
-    <img
-      className="flag"
-      src={`https://raw.githubusercontent.com/hampusborgos/country-flags/main/svg/${countrycode.toLowerCase()}.svg`}
-      onError={() => {
-        setActive(false)
-      }}
-    />
-  ) : (
-    <></>
-  )
+  return src ? <img className={className} src={src} alt={countrycode} /> : <></>
 }
