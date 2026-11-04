@@ -76,6 +76,27 @@ let
   toEnv = value: if builtins.isBool value then (if value then "1" else "0") else toString value;
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [
+      "services"
+      "bbrf"
+      "faderValue"
+    ] "Use services.bbrf.settings.FADER_VALUE instead.")
+    (lib.mkRemovedOptionModule [
+      "services"
+      "bbrf"
+      "itemsPerPage"
+    ] "Use services.bbrf.settings.ITEMS_PER_PAGE instead.")
+    (lib.mkRemovedOptionModule [ "services" "bbrf" "serveStaticSite" ]
+      "The module no longer serves the client-only build; use https://bbrf.vhsconnect.link or serve pages/ from the bbrf-radio package yourself."
+    )
+    (lib.mkRemovedOptionModule [
+      "services"
+      "bbrf"
+      "staticSiteServedOn"
+    ] "Removed along with services.bbrf.serveStaticSite.")
+  ];
+
   options.services.bbrf = {
     enable = mkEnableOption "the bbrf radio server";
 
@@ -234,132 +255,144 @@ in
     };
   };
 
-  config = mkIf cfg.enable (mkMerge [
-    {
-      assertions =
-        map
-          (name: {
-            assertion = !distributed || dist.${name} != null;
-            message = "services.bbrf.distribution.${name} is required for role ${cfg.role}";
-          })
-          [
-            "address"
-            "peerAddress"
-            "certificates"
-          ]
-        ++
-          map
-            (name: {
-              assertion = !distributed || dist.${name} != null;
-              message = "services.bbrf.distribution.${name} is required for role ${cfg.role}; set it, or sopsFile with sops-nix imported";
-            })
-            [
-              "keyFile"
-              "cookieFile"
-            ];
-
-      users.users = optionalAttrs (cfg.user == "bbrf") {
-        bbrf = {
-          isSystemUser = true;
-          inherit (cfg) group;
-        };
-      };
-      users.groups = optionalAttrs (cfg.group == "bbrf") { bbrf = { }; };
-
-      networking.firewall.allowedTCPPorts = optional cfg.openFirewall cfg.port;
-
-      systemd.services.bbrf = {
-        description = "bbrf radio server";
-        wantedBy = [ "multi-user.target" ];
-        wants = [ "network-online.target" ];
-        after = [ "network-online.target" ];
-
-        environment =
-          lib.mapAttrs (_: toEnv) cfg.settings
-          // {
-            BBRF_ROLE = cfg.role;
-            PORT = toString cfg.port;
-            BBRF_DB = "/var/lib/bbrf/db.sqlite";
-            STATIC_DIR = "${cfg.package}/static";
-            RELEASE_TMP = "/run/bbrf";
-            # the node name and the TLS flags come from ELIXIR_ERL_OPTIONS
-            RELEASE_DISTRIBUTION = "none";
-            # the start script requires one; a distributed node replaces it from BBRF_COOKIE_FILE at boot
-            RELEASE_COOKIE = "bbrf-placeholder";
-          }
-          // optionalAttrs (cfg.favoritesImportFile != null) {
-            FAVORITES_IMPORT_FILE = cfg.favoritesImportFile;
-          }
-          // optionalAttrs distributed {
-            ELIXIR_ERL_OPTIONS = erlFlags;
-            BBRF_COOKIE_FILE = "${credentials}/cookie";
-            ${if cfg.role == "hub" then "SYNC_INGEST_NODE" else "SYNC_HUB_NODE"} =
-              "bbrf_${peerRole}@${dist.peerAddress}";
-          }
-          // optionalAttrs (distributed && bind != null) {
-            # only takes effect when this node is the one starting epmd
-            ERL_EPMD_ADDRESS = bind;
-          };
-
-        serviceConfig = {
-          ExecStart = "${cfg.package}/bin/bbrf start";
-          User = cfg.user;
-          Group = cfg.group;
-          StateDirectory = "bbrf";
-          RuntimeDirectory = "bbrf";
-          WorkingDirectory = "/var/lib/bbrf";
-          Restart = "on-failure";
-          LoadCredential = lib.optionals distributed [
-            "key:${dist.keyFile}"
-            "cookie:${dist.cookieFile}"
-          ];
-
-          NoNewPrivileges = true;
-          PrivateTmp = true;
-          PrivateDevices = true;
-          ProtectSystem = "strict";
-          ProtectHome = true;
-          ProtectKernelTunables = true;
-          ProtectKernelModules = true;
-          ProtectControlGroups = true;
-          RestrictSUIDSGID = true;
-          LockPersonality = true;
-        };
-      };
-    }
-
-    (mkIf (cfg.role == "hub" && dist.openFirewall) (
-      let
-        ports = {
-          allowedTCPPorts = [ 4369 ];
-          allowedTCPPortRanges = [
-            {
-              from = dist.portMin;
-              to = dist.portMax;
-            }
-          ];
-        };
-      in
+  # nix-darwin has no systemd; without this guard it fails on an undefined option before any assertion is shown
+  config =
+    if !(options ? systemd) then
       {
-        networking.firewall = mkMerge [
-          (mkIf (dist.firewallInterface == null) ports)
-          (mkIf (dist.firewallInterface != null) { interfaces.${dist.firewallInterface} = ports; })
+        assertions = [
+          {
+            assertion = !cfg.enable;
+            message = "services.bbrf runs on NixOS only; launchd (nix-darwin) support was removed in 0.11.0.";
+          }
         ];
       }
-    ))
+    else
+      mkIf cfg.enable (mkMerge [
+        {
+          assertions =
+            map
+              (name: {
+                assertion = !distributed || dist.${name} != null;
+                message = "services.bbrf.distribution.${name} is required for role ${cfg.role}";
+              })
+              [
+                "address"
+                "peerAddress"
+                "certificates"
+              ]
+            ++
+              map
+                (name: {
+                  assertion = !distributed || dist.${name} != null;
+                  message = "services.bbrf.distribution.${name} is required for role ${cfg.role}; set it, or sopsFile with sops-nix imported";
+                })
+                [
+                  "keyFile"
+                  "cookieFile"
+                ];
 
-    (optionalAttrs (options ? sops) (
-      mkIf (distributed && dist.sopsFile != null) {
-        sops.secrets = lib.genAttrs [ "bbrf/key" "bbrf/cookie" ] (name: {
-          inherit (dist) sopsFile;
-          key = lib.removePrefix "bbrf/" name;
-          restartUnits = [ "bbrf.service" ];
-        });
-        services.bbrf.distribution = {
-          keyFile = mkDefault config.sops.secrets."bbrf/key".path;
-          cookieFile = mkDefault config.sops.secrets."bbrf/cookie".path;
-        };
-      }
-    ))
-  ]);
+          users.users = optionalAttrs (cfg.user == "bbrf") {
+            bbrf = {
+              isSystemUser = true;
+              inherit (cfg) group;
+            };
+          };
+          users.groups = optionalAttrs (cfg.group == "bbrf") { bbrf = { }; };
+
+          networking.firewall.allowedTCPPorts = optional cfg.openFirewall cfg.port;
+
+          systemd.services.bbrf = {
+            description = "bbrf radio server";
+            wantedBy = [ "multi-user.target" ];
+            wants = [ "network-online.target" ];
+            after = [ "network-online.target" ];
+
+            environment =
+              lib.mapAttrs (_: toEnv) cfg.settings
+              // {
+                BBRF_ROLE = cfg.role;
+                PORT = toString cfg.port;
+                BBRF_DB = "/var/lib/bbrf/db.sqlite";
+                STATIC_DIR = "${cfg.package}/static";
+                RELEASE_TMP = "/run/bbrf";
+                # the node name and the TLS flags come from ELIXIR_ERL_OPTIONS
+                RELEASE_DISTRIBUTION = "none";
+                # the start script requires one; a distributed node replaces it from BBRF_COOKIE_FILE at boot
+                RELEASE_COOKIE = "bbrf-placeholder";
+              }
+              // optionalAttrs (cfg.favoritesImportFile != null) {
+                FAVORITES_IMPORT_FILE = cfg.favoritesImportFile;
+              }
+              // optionalAttrs distributed {
+                ELIXIR_ERL_OPTIONS = erlFlags;
+                BBRF_COOKIE_FILE = "${credentials}/cookie";
+                ${if cfg.role == "hub" then "SYNC_INGEST_NODE" else "SYNC_HUB_NODE"} =
+                  "bbrf_${peerRole}@${dist.peerAddress}";
+              }
+              // optionalAttrs (distributed && bind != null) {
+                # only takes effect when this node is the one starting epmd
+                ERL_EPMD_ADDRESS = bind;
+              };
+
+            serviceConfig = {
+              ExecStart = "${cfg.package}/bin/bbrf start";
+              User = cfg.user;
+              Group = cfg.group;
+              StateDirectory = "bbrf";
+              RuntimeDirectory = "bbrf";
+              WorkingDirectory = "/var/lib/bbrf";
+              Restart = "on-failure";
+              LoadCredential = lib.optionals distributed [
+                "key:${dist.keyFile}"
+                "cookie:${dist.cookieFile}"
+              ];
+
+              NoNewPrivileges = true;
+              PrivateTmp = true;
+              PrivateDevices = true;
+              ProtectSystem = "strict";
+              ProtectHome = true;
+              ProtectKernelTunables = true;
+              ProtectKernelModules = true;
+              ProtectControlGroups = true;
+              RestrictSUIDSGID = true;
+              LockPersonality = true;
+            };
+          };
+        }
+
+        (mkIf (cfg.role == "hub" && dist.openFirewall) (
+          let
+            ports = {
+              allowedTCPPorts = [ 4369 ];
+              allowedTCPPortRanges = [
+                {
+                  from = dist.portMin;
+                  to = dist.portMax;
+                }
+              ];
+            };
+          in
+          {
+            networking.firewall = mkMerge [
+              (mkIf (dist.firewallInterface == null) ports)
+              (mkIf (dist.firewallInterface != null) { interfaces.${dist.firewallInterface} = ports; })
+            ];
+          }
+        ))
+
+        (optionalAttrs (options ? sops) (
+          mkIf (distributed && dist.sopsFile != null) {
+            sops.secrets = lib.genAttrs [ "bbrf/key" "bbrf/cookie" ] (name: {
+              inherit (dist) sopsFile;
+              key = lib.removePrefix "bbrf/" name;
+              restartUnits = [ "bbrf.service" ];
+            });
+            services.bbrf.distribution = {
+              keyFile = mkDefault config.sops.secrets."bbrf/key".path;
+              cookieFile = mkDefault config.sops.secrets."bbrf/cookie".path;
+            };
+          }
+        ))
+      ]);
 }
