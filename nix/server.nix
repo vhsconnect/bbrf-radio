@@ -8,7 +8,7 @@
 
 let
   pname = "bbrf";
-  version = "0.11.0";
+  version = "0.11.1";
   src = lib.fileset.toSource {
     root = ../server-next;
     fileset = lib.fileset.unions [
