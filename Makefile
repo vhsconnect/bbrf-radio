@@ -12,7 +12,7 @@ FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/sto
 SECRETS_DIR ?= $(CURDIR)/secrets
 AGE_KEY_DIR ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf
 
-.PHONY: dev dev-all dev-api dev-ingester deps server docker attach frontend test status status-watch age-key secrets secrets-renew secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -29,7 +29,7 @@ deps:
 	$(NIX) pnpm install
 	cd server-next && $(NIX) mix deps.get
 
-server:
+server: docker-stop
 	mkdir -p $(STATE_DIR)
 	cd server-next && \
 		PORT=$(PORT) \
@@ -45,6 +45,11 @@ server:
 docker:
 	mkdir -p $(STATE_DIR) $(SECRETS_DIR) $(AGE_KEY_DIR)
 	docker compose up -d --build bbrf
+
+# the container shares $(STATE_DIR) with the local server, and two ingesters on one sqlite file lock each other out;
+# '-' keeps going on machines without docker
+docker-stop:
+	-docker compose stop bbrf
 
 attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)

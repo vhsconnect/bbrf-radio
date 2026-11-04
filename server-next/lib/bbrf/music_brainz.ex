@@ -8,7 +8,7 @@ defmodule BBRF.MusicBrainz do
 
   MusicBrainz asks for a User-Agent with contact info and serves one
   request per second per IP, answering 503 past that. Every request
-  here waits for its own slot, MUSICBRAINZ_INTERVAL_MS (1000) after the
+  here waits for its own slot, MUSICBRAINZ_INTERVAL_MS (1200) after the
   previous one, across all processes; requests are not retried.
   MUSICBRAINZ_BASE_URL points at a mirror instead.
 
@@ -51,7 +51,7 @@ defmodule BBRF.MusicBrainz do
 
   def base_url, do: Env.str("MUSICBRAINZ_BASE_URL", @default_base_url)
 
-  def interval_ms, do: Env.int("MUSICBRAINZ_INTERVAL_MS", 1_000)
+  def interval_ms, do: Env.int("MUSICBRAINZ_INTERVAL_MS", 1_200)
 
   @doc """
   One entity by MBID, nil when MusicBrainz has none.

@@ -36,7 +36,7 @@ Environment:
 - api: `PORT` (4881); `STATIC_DIR` (`static`) directory holding `index.html`, `index.js`, `styles.css`, `favicon-16x16.png`; `FADER_VALUE` (25), `ITEMS_PER_PAGE` (5000), `TRACKS_PER_PAGE` (200) for `/tracks`
 - `FAVORITES_IMPORT_FILE` optional path to a node server `storage.json`; imported only while the favorites table is empty
 - `RADIO_BROWSER_BASE_URL` pins a radio-browser server; unset, a mirror is picked from `all.api.radio-browser.info`
-- `MUSICBRAINZ_BASE_URL` (`https://musicbrainz.org/ws/2`) ws/2 endpoint `BBRF.MusicBrainz` calls; `MUSICBRAINZ_INTERVAL_MS` (1000) gap between its requests, across all processes, and between job starts in the work queue's `musicbrainz` lane
+- `MUSICBRAINZ_BASE_URL` (`https://musicbrainz.org/ws/2`) ws/2 endpoint `BBRF.MusicBrainz` calls; `MUSICBRAINZ_INTERVAL_MS` (1200) gap between its requests, across all processes, and between job starts in the work queue's `musicbrainz` lane
 - ingester:
   - `FULL_SYNC_HOURS` (168) age of the last full catalogue sync before the next one runs
   - `CHANGES_POLL_MINUTES` (10) how often `stations/lastchange` is polled for added and edited stations
