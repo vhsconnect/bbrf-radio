@@ -24,6 +24,119 @@ button {
   opacity: 0.35;
 }
 
+.toggle {
+  margin-left: 10px;
+}
+
+.toggle button {
+  cursor: pointer;
+}
+
+.toggle button + button {
+  margin-left: -1px;
+}
+
+.toggle button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.toggle button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* raised so its border draws over the shared edge */
+.toggle-on {
+  position: relative;
+  z-index: 1;
+}
+
+.toggle-off {
+  color: seagreen;
+  border-color: seagreen;
+}
+
+/* min-width lets the flex item shrink below the table's nowrap width, so any overflow scrolls here instead of past the sticky header */
+.tracklist {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.tracklist table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sort-header {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tracklist td {
+  overflow-wrap: anywhere;
+}
+
+.tracklist-end {
+  height: 1px;
+  width: 1px;
+}
+
+.tracklist th,
+.tracklist td {
+  padding: 3px 12px 3px 0;
+  text-align: left;
+}
+
+.tracklist th {
+  white-space: nowrap;
+  color: seagreen;
+  font-weight: normal;
+  border-bottom: solid seagreen 1px;
+}
+
+.tracklist-time {
+  color: seagreen;
+  white-space: nowrap;
+}
+
+.tracklist-track span {
+  display: block;
+  max-width: 50ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.tracklist-station {
+  white-space: nowrap;
+}
+
+.tracklist-station button {
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracklist-tags {
+  color: seagreen;
+}
+
+.tracklist-tags span {
+  color: inherit;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
 .radio-player {
   display: flex;
   justify-content: space-around;
@@ -55,8 +168,56 @@ button {
   border-radius: 8%;
 }
 
+.flag-small {
+  width: 1.6em;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+
 .flex-div {
   display: flex;
+}
+
+/* dot spacing matches GRID_CELL in withDraggable.tsx so snapped stations land on the dots */
+.favs-grid {
+  flex: 1;
+  position: relative;
+  background-image: radial-gradient(
+    circle,
+    rgba(127, 255, 212, 0.3) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+  background-position: -8px -8px;
+}
+
+.favs-grid div,
+.favs-grid span {
+  background-color: transparent;
+}
+
+.favs-grid button {
+  max-width: 176px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* disabled buttons swallow mousedown, which would block dragging while a station loads */
+.favs-grid button:disabled {
+  pointer-events: none;
+}
+
+.favs-grid .draggable {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z);
+}
+
+.favs-grid .react-draggable-dragging {
+  z-index: 2147483647;
+  cursor: grabbing;
 }
 
 .right-panel {
@@ -78,10 +239,8 @@ button {
   }
 }
 
-@media only screen and (max-width: 600px) { 
+@media only screen and (max-width: 600px) {
   .mobile-hidden {
     display: none;
+  }
 }
-
-
-
