@@ -57,11 +57,8 @@ button {
   border-color: seagreen;
 }
 
-/* min-width lets the flex item shrink below the table's nowrap width, so any overflow scrolls here instead of past the sticky header */
 .tracklist {
   flex: 1;
-  min-width: 0;
-  overflow-x: auto;
 }
 
 .tracklist table {
