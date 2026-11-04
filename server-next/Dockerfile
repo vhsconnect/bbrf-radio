@@ -1,7 +1,7 @@
 # Build context is the bbrf-radio repo root, because the frontend bundle is
 # built from src/ here:  docker build -f server-next/Dockerfile .
 ARG NODE_IMAGE=node:26-alpine
-ARG ELIXIR_IMAGE=hexpm/elixir:1.19.6-erlang-28.5.0.8-debian-bookworm-20261005-slim
+ARG ELIXIR_IMAGE=hexpm/elixir:1.20.5-erlang-28.5.0.8-debian-bookworm-20261027-slim
 ARG RUNTIME_IMAGE=debian:bookworm-slim
 
 FROM ${NODE_IMAGE} AS web

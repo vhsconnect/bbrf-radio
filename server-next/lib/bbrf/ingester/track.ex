@@ -261,8 +261,8 @@ defmodule BBRF.Ingester.Track do
     buffer = Req.Response.get_private(response, :icy, "")
 
     with metaint when is_integer(metaint) <- metaint(response),
-         <<_audio::binary-size(metaint), length, block::binary>> <- buffer,
-         <<metadata::binary-size(length * 16), _rest::binary>> <- block do
+         <<_audio::binary-size(^metaint), length, block::binary>> <- buffer,
+         <<metadata::binary-size(^length * 16), _rest::binary>> <- block do
       {:ok, build_observation(stationuuid, icy_source(metadata, response))}
     else
       _incomplete -> :no_source

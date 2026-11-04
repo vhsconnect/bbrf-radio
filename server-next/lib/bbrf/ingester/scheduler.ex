@@ -12,7 +12,6 @@ defmodule BBRF.Ingester.Scheduler do
   """
 
   use GenServer
-  require Logger
   alias BBRF.Ingester.Log
 
   def start_link(opts) do

@@ -30,7 +30,6 @@ defmodule BBRF.Sync do
   leaves the shared cookie in BBRF_COOKIE_FILE for `use_cookie/0`.
   """
 
-  require Logger
   alias BBRF.{Env, IngestStat, Repo}
   alias BBRF.Ingester.{Scheduler, Track}
   alias BBRF.Sync.Receiver

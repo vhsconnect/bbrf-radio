@@ -33,7 +33,7 @@ beamPackages.mixRelease {
   mixFodDeps = beamPackages.fetchMixDeps {
     pname = "${pname}-deps";
     inherit version src;
-    hash = "sha256-FTBFeREA5xhfoARN1lOaQ/SLne9Jq5NmwPSMicMAfJQ=";
+    hash = "sha256-wT7nF7k4dKY4w4SB61iTM1Ma6njGBqn7cOV01G847GE=";
   };
 
   # exqlite would download a precompiled NIF, which the sandbox forbids
