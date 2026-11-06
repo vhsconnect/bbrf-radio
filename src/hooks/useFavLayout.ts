@@ -50,7 +50,7 @@ const useFavLayout = (channels: RadioCollection, enabled: boolean) => {
     (uuid: string) =>
     ({ x, y }: Position) => {
       const next = {
-        ...positions,
+        ...layout,
         [uuid]: {
           x: snap(x),
           y: snap(y),
