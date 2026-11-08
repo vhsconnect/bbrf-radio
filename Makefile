@@ -12,6 +12,13 @@ FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/sto
 SECRETS_DIR ?= $(CURDIR)/secrets
 AGE_KEY_DIR ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf
 
+CYAN   := \033[36m
+PURPLE := \033[35m
+RESET  := \033[0m
+
+# $(call prefix,<color>,<label>) tags each line of a piped stream with a colored label
+prefix = 2>&1 | while IFS= read -r line; do printf '$(1)[$(2)]$(RESET) %s\n' "$$line"; done
+
 .PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test metrics status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
@@ -38,7 +45,8 @@ server: docker-stop
 		FAVORITES_IMPORT_FILE=$(FAVORITES_IMPORT_FILE) \
 		BBRF_API=$(BBRF_API) \
 		BBRF_INGESTER=$(BBRF_INGESTER) \
-		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt
+		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt \
+		$(call prefix,$(CYAN),server)
 
 # server, as a release in Docker; .env picks the role here too. The mounted directories are
 # created first so Docker does not create them as root
@@ -55,8 +63,7 @@ attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
 
 frontend:
-	$(NIX) pnpm run build && \
-	$(NIX) pnpm run hot
+	{ $(NIX) pnpm run build && $(NIX) pnpm run hot; } $(call prefix,$(PURPLE),frontend)
 
 test:
 	cd server-next && $(NIX) mix test
