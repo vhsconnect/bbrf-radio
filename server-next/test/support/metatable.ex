@@ -106,12 +106,60 @@ defmodule BBRF.Metatable do
     )
   end
 
+  @doc "`times` parsed plays of `artist` - `title` on `stationuuid`, credited like the ingester credits them."
+  def plays(stationuuid, artist, title, times \\ 1) do
+    for _ <- 1..times//1 do
+      observation(%{
+        stationuuid: stationuuid,
+        raw_title: "#{artist} - #{title}",
+        artist: artist,
+        title: title,
+        artist_credit_id: BBRF.ArtistCredit.id(artist)
+      })
+    end
+  end
+
+  @doc "`times` unparsed plays of `raw_title` on `stationuuid`."
+  def raw_plays(stationuuid, raw_title, times \\ 1) do
+    for _ <- 1..times//1 do
+      observation(%{
+        stationuuid: stationuuid,
+        raw_title: raw_title,
+        artist: nil,
+        title: nil,
+        artist_credit_id: nil
+      })
+    end
+  end
+
+  @doc "Resolve the credit `artist` to one MusicBrainz artist from `country` (nil for none)."
+  def resolve!(artist, country) do
+    mbid = "mbid-" <> artist
+
+    BBRF.Repo.query!(
+      "INSERT INTO artists (mbid, name, country, fetched_at) VALUES (?, ?, ?, '2026-10-29')",
+      [mbid, artist, country]
+    )
+
+    BBRF.Repo.query!(
+      "INSERT INTO artist_credits (id, name, status, attempts, checked_at) VALUES (?, ?, 'resolved', 1, '2026-10-29')",
+      [BBRF.ArtistCredit.id(artist), artist]
+    )
+
+    BBRF.Repo.query!(
+      "INSERT INTO artist_credit_artists (artist_credit_id, position, artist_mbid) VALUES (?, 0, ?)",
+      [BBRF.ArtistCredit.id(artist), mbid]
+    )
+
+    :ok
+  end
+
   def now, do: ~U[2026-10-19 12:00:00.000000Z]
 
   def reset_db! do
     Enum.each(
-      ~w(track_observations stations ingest_stats favorites artist_credit_artists artist_credits
-         artist_tags artist_aliases artist_links artists),
+      ~w(track_observations stations ingest_stats favorites station_metrics artist_credit_artists
+         artist_credits artist_tags artist_aliases artist_links artists),
       &BBRF.Repo.query!("DELETE FROM #{&1}")
     )
   end

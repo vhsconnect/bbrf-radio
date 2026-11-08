@@ -12,7 +12,7 @@ FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/sto
 SECRETS_DIR ?= $(CURDIR)/secrets
 AGE_KEY_DIR ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf
 
-.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test status status-watch age-key secrets secrets-renew secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test metrics status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -60,6 +60,10 @@ frontend:
 
 test:
 	cd server-next && $(NIX) mix test
+
+# station metrics, computed once against $(DB); fine next to a running server
+metrics:
+	cd server-next && BBRF_DB=$(DB) $(NIX) mix run --no-start -e "BBRF.Metrics.CLI.main()"
 
 status:
 	$(NIX) sqlite3 -readonly $(DB) < server-next/scripts/status.sql

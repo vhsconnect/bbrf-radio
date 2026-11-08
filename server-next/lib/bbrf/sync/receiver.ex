@@ -5,9 +5,10 @@ defmodule BBRF.Sync.Receiver do
 
   It answers only processes on SYNC_INGEST_NODE (nobody when unset),
   only when both databases are at the same migration, and only writes
-  `stations` and the artist catalogue (upserted) and `track_observations`
-  (rows it already has are left alone) with exactly the columns its own
-  tables have.
+  `stations`, the artist catalogue and `station_metrics` (upserted) and
+  `track_observations` (rows it already has are left alone) with exactly
+  the columns its own tables have. It deletes the station metrics it holds
+  from runs the ingest node has no rows from any more.
 
   Options: `:ingest_node` overrides SYNC_INGEST_NODE, and `:repo` makes
   it write to a dynamic repo (the tests run both ends on one node).
@@ -26,7 +27,8 @@ defmodule BBRF.Sync.Receiver do
     "artist_aliases" => ~w(artist_mbid alias),
     "artist_links" => ~w(artist_mbid url),
     "artist_credits" => ~w(id),
-    "artist_credit_artists" => ~w(artist_credit_id position)
+    "artist_credit_artists" => ~w(artist_credit_id position),
+    "station_metrics" => ~w(stationuuid metric)
   }
 
   @tables ["track_observations" | Map.keys(@keys)]
@@ -73,6 +75,11 @@ defmodule BBRF.Sync.Receiver do
     end
   end
 
+  def handle_call({:metric_runs, runs}, _from, state) when is_list(runs) do
+    drop_stale_metrics(runs)
+    {:reply, :ok, state}
+  end
+
   def handle_call(message, _from, state) do
     {:reply, {:error, {:unknown_message, elem_name(message)}}, state}
   end
@@ -86,6 +93,16 @@ defmodule BBRF.Sync.Receiver do
     if Track.retention_days() > 0 do
       DateTime.utc_now() |> DateTime.add(-Track.retention_days(), :day) |> DateTime.to_iso8601()
     end
+  end
+
+  defp drop_stale_metrics(runs) do
+    stale =
+      Enum.map_join(runs, " AND ", fn _run -> "NOT (metric = ? AND computed_at = ?)" end)
+
+    Repo.query!(
+      "DELETE FROM station_metrics" <> if(runs == [], do: "", else: " WHERE " <> stale),
+      Enum.flat_map(runs, &Tuple.to_list/1)
+    )
   end
 
   defp insert(_table, _columns, []), do: :ok
