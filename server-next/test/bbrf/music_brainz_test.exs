@@ -4,13 +4,28 @@ defmodule BBRF.MusicBrainzTest do
   import Plug.Conn
   alias BBRF.MusicBrainz
 
+  # index 1: 503s still to answer on /artist/busy; index 2: requests it got
   setup do
+    busy = :counters.new(2, [])
+    test_pid = self()
+
     plug = fn conn, _opts ->
       conn = fetch_query_params(conn)
 
       case conn.request_path do
         "/ws/2/artist/missing" ->
           send_resp(conn, 404, "")
+
+        "/ws/2/artist/busy" ->
+          :counters.add(busy, 2, 1)
+          send(test_pid, {:busy_at, System.monotonic_time(:millisecond)})
+
+          if :counters.get(busy, 1) > 0 do
+            :counters.sub(busy, 1, 1)
+            send_resp(conn, 503, "")
+          else
+            conn |> put_resp_content_type("application/json") |> send_resp(200, ~s({"id":"busy"}))
+          end
 
         path ->
           conn
@@ -38,6 +53,8 @@ defmodule BBRF.MusicBrainzTest do
       System.delete_env("MUSICBRAINZ_BASE_URL")
       System.delete_env("MUSICBRAINZ_INTERVAL_MS")
     end)
+
+    {:ok, busy: busy}
   end
 
   test "looks up an entity by mbid with its includes, as json, with the user agent" do
@@ -87,6 +104,44 @@ defmodule BBRF.MusicBrainzTest do
 
     assert response["path"] == "/ws/2/url"
     assert response["params"]["resource"] == "https://example.com/band"
+  end
+
+  test "retries a busy answer and returns what follows", %{busy: busy} do
+    :counters.put(busy, 1, 3)
+
+    assert MusicBrainz.lookup(:artist, "busy") == %{"id" => "busy"}
+    assert :counters.get(busy, 2) == 4
+  end
+
+  test "raises once MusicBrainz stays busy past the retries", %{busy: busy} do
+    :counters.put(busy, 1, 10)
+
+    assert_raise RuntimeError, ~r/HTTP 503/, fn -> MusicBrainz.lookup(:artist, "busy") end
+    assert :counters.get(busy, 2) == 4
+  end
+
+  test "waits two intervals before retrying a busy answer", %{busy: busy} do
+    System.put_env("MUSICBRAINZ_INTERVAL_MS", "50")
+    :counters.put(busy, 1, 1)
+
+    MusicBrainz.lookup(:artist, "busy")
+
+    assert_received {:busy_at, first}
+    assert_received {:busy_at, retry}
+    assert retry - first >= 90
+  end
+
+  test "a busy answer holds back the next caller too", %{busy: busy} do
+    System.put_env("MUSICBRAINZ_INTERVAL_MS", "50")
+    :counters.put(busy, 1, 4)
+
+    assert_raise RuntimeError, fn -> MusicBrainz.lookup(:artist, "busy") end
+    assert_received {:busy_at, _first}
+    assert_received {:busy_at, _second}
+    assert_received {:busy_at, _third}
+    assert_received {:busy_at, last_busy}
+
+    assert MusicBrainz.genres()["at"] - last_busy >= 390
   end
 
   test "concurrent requests are spaced one interval apart" do
