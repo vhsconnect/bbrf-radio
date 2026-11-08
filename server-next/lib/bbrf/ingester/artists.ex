@@ -4,10 +4,13 @@ defmodule BBRF.Ingester.Artists do
   most played first, in the `:musicbrainz` lane of
   `BBRF.Ingester.WorkQueue`.
 
-  A recording search on a credit's most played title and the credit
-  itself returns MusicBrainz's own split of the credit into artists. The
-  best match is taken when it scores at least 90 and every artist in
-  it is named in the credit; otherwise the credit is unresolved and tried
+  A recording search on a credit's most played title and the words of
+  the credit, both cleaned up by `BBRF.Ingester.Artists.Cleanup`,
+  returns MusicBrainz's own split of the credit into artists. The best
+  match is taken when it scores at least 90 and every artist in it is
+  named in the credit as whole words, once both are folded, and none is
+  a special purpose artist ([unknown], Various Artists, ...); otherwise
+  the credit is unresolved and tried
   again after 7 days, then every 30, since an ad or a placeholder never
   resolves. Each artist not in `artists` yet has its profile looked up
   and stored flattened over `artists` and the `artist_*` tables.
@@ -18,10 +21,12 @@ defmodule BBRF.Ingester.Artists do
   """
 
   require Logger
-  alias BBRF.{ArtistCredit, Env, IngestStat, MusicBrainz, Repo}
+  alias BBRF.{Env, IngestStat, MusicBrainz, Repo}
+  alias BBRF.Ingester.Artists.Cleanup
   alias BBRF.Ingester.WorkQueue
 
   @min_score 90
+  @various_artists "89ad4ac3-39f7-470e-963a-56509c546377"
   @unresolved_days [7, 30]
   @profile_inc ~w(aliases tags genres url-rels)
   # a search plus a profile lookup per artist, each paced a second apart
@@ -116,14 +121,28 @@ defmodule BBRF.Ingester.Artists do
   stored yet, or `:unresolved`. Raises when a request fails.
   """
   def resolve(%{name: name, title: title}) do
-    query = "recording:#{MusicBrainz.phrase(title)} AND artist:#{MusicBrainz.phrase(name)}"
-
-    with artists when artists != nil <-
-           match(name, MusicBrainz.search(:recording, query, limit: 5)),
+    with query when query != nil <- query(name, title),
+         artists when artists != nil <-
+           match(name, MusicBrainz.search(:recording, query, limit: 10)),
          profiles when profiles != nil <- new_profiles(artists) do
       {:resolved, artists, profiles}
     else
       nil -> :unresolved
+    end
+  end
+
+  @doc """
+  The recording search for a credit `name` played with `title`: the
+  cleaned title as a phrase and any of the credit's words as the artist.
+  nil when the credit has no words to search with.
+  """
+  def query(name, title) do
+    case Cleanup.artist_terms(name) do
+      [] ->
+        nil
+
+      terms ->
+        "recording:#{MusicBrainz.phrase(Cleanup.title(title))} AND artist:(#{Enum.join(terms, " ")})"
     end
   end
 
@@ -146,28 +165,58 @@ defmodule BBRF.Ingester.Artists do
   end
 
   @doc """
-  The artists of the first recording in a search `response` that scores
-  at least #{@min_score} and names no artist the credit `name` leaves out,
-  as `artist_credit_artists` rows without the credit id; nil for none.
+  The artists of a recording in a search `response` that scores at least
+  #{@min_score} and names no artist the credit `name` leaves out, as
+  `artist_credit_artists` rows without the credit id; nil for none.
+
+  Of several, the one whose artists account for the most words of the
+  credit wins ("The Refreshments" over "Refreshments", all three of
+  "Kygo, Avicii & Sandro Cavazza" over two of them), then the artists
+  the most of those recordings credit, then the best scored.
   """
   def match(name, response) do
-    key = ArtistCredit.normalize(name)
+    key = " #{Cleanup.fold(name)} "
 
-    Enum.find_value(response["recordings"] || [], fn recording ->
-      credit = recording["artist-credit"] || []
+    credits =
+      for recording <- response["recordings"] || [],
+          credit = recording["artist-credit"] || [],
+          score(recording) >= @min_score and credit != [] and Enum.all?(credit, &named?(key, &1)),
+          do: credit
 
-      if score(recording) >= @min_score and credit != [] and Enum.all?(credit, &named?(key, &1)) do
-        credit
-        |> Enum.with_index()
-        |> Enum.map(fn {entry, position} ->
-          %{
-            position: position,
-            artist_mbid: entry["artist"]["id"],
-            credited_as: entry["name"],
-            join_phrase: entry["joinphrase"]
-          }
-        end)
-      end
+    case credits do
+      [] -> nil
+      credits -> credits |> best(Cleanup.words(name)) |> credit_rows()
+    end
+  end
+
+  defp best(credits, words) do
+    words = Enum.uniq(words)
+    counts = Enum.frequencies_by(credits, &mbids/1)
+    Enum.max_by(credits, &{coverage(&1, words), counts[mbids(&1)]})
+  end
+
+  defp mbids(credit), do: Enum.map(credit, & &1["artist"]["id"])
+
+  defp coverage(credit, words) do
+    named =
+      Enum.flat_map(
+        credit,
+        &(Cleanup.words(&1["name"] || "") ++ Cleanup.words(&1["artist"]["name"] || ""))
+      )
+
+    Enum.count(words, &(&1 in named))
+  end
+
+  defp credit_rows(credit) do
+    credit
+    |> Enum.with_index()
+    |> Enum.map(fn {entry, position} ->
+      %{
+        position: position,
+        artist_mbid: entry["artist"]["id"],
+        credited_as: entry["name"],
+        join_phrase: entry["joinphrase"]
+      }
     end)
   end
 
@@ -175,15 +224,21 @@ defmodule BBRF.Ingester.Artists do
   defp score(%{"score" => score}) when is_binary(score), do: String.to_integer(score)
   defp score(_recording), do: 0
 
-  defp named?(key, entry),
-    do: contains?(key, entry["name"]) or contains?(key, entry["artist"]["name"])
+  defp named?(key, entry) do
+    not special?(entry["artist"]) and
+      (contains?(key, entry["name"]) or contains?(key, entry["artist"]["name"]))
+  end
+
+  defp special?(%{"id" => @various_artists}), do: true
+  defp special?(%{"name" => "[" <> _rest}), do: true
+  defp special?(_artist), do: false
 
   defp contains?(_key, nil), do: false
 
   defp contains?(key, name) do
-    case ArtistCredit.normalize(name) do
+    case Cleanup.fold(name) do
       "" -> false
-      name -> String.contains?(key, name)
+      name -> String.contains?(key, " #{name} ")
     end
   end
 
