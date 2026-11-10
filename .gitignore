@@ -10,5 +10,6 @@ next-up.md
 result
 .opencode
 .env
+.envrc
 plan.md
 secrets/
