@@ -44,6 +44,39 @@ defmodule BBRF.Metrics do
     results
   end
 
+  @doc """
+  `stations` (radio-browser station maps) each with a `"metrics"` map of
+  its stored rows by metric name, as `%{"value" => value, "sample" => sample}`.
+  A station without rows gets an empty map.
+  """
+  def enrich([]), do: []
+
+  def enrich(stations) when is_list(stations) do
+    by_station = for_stations(Enum.map(stations, & &1["stationuuid"]))
+
+    Enum.map(stations, fn station ->
+      Map.put(station, "metrics", Map.get(by_station, station["stationuuid"], %{}))
+    end)
+  end
+
+  defp for_stations(stationuuids) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        SELECT stationuuid, metric, value, sample
+          FROM station_metrics
+         WHERE stationuuid IN (SELECT value FROM json_each(?))
+        """,
+        [Jason.encode!(stationuuids)]
+      )
+
+    rows
+    |> Enum.group_by(&hd/1, fn [_stationuuid, metric, value, sample] ->
+      {metric, %{"value" => value, "sample" => sample}}
+    end)
+    |> Map.new(fn {stationuuid, metrics} -> {stationuuid, Map.new(metrics)} end)
+  end
+
   @doc "SQL placeholders for an `IN` list of `values`."
   def placeholders(values), do: Enum.map_join(values, ", ", fn _ -> "?" end)
 

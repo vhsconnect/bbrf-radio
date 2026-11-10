@@ -91,4 +91,27 @@ defmodule BBRF.MetricsTest do
     assert Repo.query!("SELECT error FROM ingest_stats WHERE endpoint = 'metric:broken'").rows ==
              [["no luck"]]
   end
+
+  test "enrich/1 puts each station's stored metrics on it by stationuuid" do
+    Metrics.run([Balance, Ads], @first_run)
+
+    assert Metrics.enrich([
+             %{"stationuuid" => "station-1", "name" => "Example FM"},
+             %{"stationuuid" => "unscored"}
+           ]) == [
+             %{
+               "stationuuid" => "station-1",
+               "name" => "Example FM",
+               "metrics" => %{
+                 "ads" => %{"value" => 0.0, "sample" => 0},
+                 "balance" => %{"value" => 0.5, "sample" => 4}
+               }
+             },
+             %{"stationuuid" => "unscored", "metrics" => %{}}
+           ]
+  end
+
+  test "enrich/1 of no stations is empty" do
+    assert Metrics.enrich([]) == []
+  end
 end

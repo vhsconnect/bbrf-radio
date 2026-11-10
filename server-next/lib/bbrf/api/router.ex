@@ -10,7 +10,8 @@ defmodule BBRF.API.Router do
   the frontend when the icecast status page has none.
   `/bytrack` and `/tracks` have no node counterpart: they read the
   ingested track history (`BBRF.History`) and page like the other
-  `/by*` routes.
+  `/by*` routes. The stations of every `/by*` route carry their
+  `station_metrics` rows under `"metrics"` (`BBRF.Metrics.enrich/1`).
   """
 
   use Plug.Router
@@ -18,7 +19,7 @@ defmodule BBRF.API.Router do
   require Logger
   import Ecto.Query, only: [from: 2]
 
-  alias BBRF.{Env, Favorites, History, RadioBrowser, Repo, Station}
+  alias BBRF.{Env, Favorites, History, Metrics, RadioBrowser, Repo, Station}
   alias BBRF.Ingester.Track
 
   @static_files ["index.html", "index.js", "styles.css", "favicon-16x16.png"]
@@ -55,7 +56,11 @@ defmodule BBRF.API.Router do
   end
 
   get "/bytrack/:query" do
-    paged(conn, fn offset, limit -> History.search(query, limit, offset) end)
+    paged(conn, fn offset, limit ->
+      query
+      |> History.search(limit, offset)
+      |> Metrics.enrich()
+    end)
   end
 
   get "/tracks" do
@@ -119,7 +124,9 @@ defmodule BBRF.API.Router do
 
   defp search(conn, endpoint) do
     paged(conn, fn offset, limit ->
-      RadioBrowser.get_json(endpoint, offset: offset, limit: limit)
+      endpoint
+      |> RadioBrowser.get_json(offset: offset, limit: limit)
+      |> Metrics.enrich()
     end)
   end
 

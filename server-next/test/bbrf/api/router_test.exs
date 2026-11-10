@@ -111,9 +111,17 @@ defmodule BBRF.API.RouterTest do
       })
     ])
 
+    Repo.query!(
+      "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES ('station-1', 'balance', 0.5, 60, 'run-1')"
+    )
+
     assert [
-             %{"stationuuid" => "station-2"},
-             %{"stationuuid" => "station-1", "name" => "Example FM"}
+             %{"stationuuid" => "station-2", "metrics" => %{}},
+             %{
+               "stationuuid" => "station-1",
+               "name" => "Example FM",
+               "metrics" => %{"balance" => %{"value" => 0.5, "sample" => 60}}
+             }
            ] =
              json(call(:get, "/bytrack/AC%2FDC"))
 

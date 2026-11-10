@@ -43,7 +43,6 @@ export default defineConfig(({ mode }) => {
       watch: {
         ignored: [
           '**/server/**',
-          '**/server-elixir/**',
           '**/server-next/**',
           '**/pages/**',
           '**/result/**',
