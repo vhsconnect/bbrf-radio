@@ -4,7 +4,7 @@ defmodule BBRF.MetricsTest do
   @moduletag :capture_log
 
   alias BBRF.{Metatable, Metrics, Repo, TrackObservation}
-  alias BBRF.Metrics.{Ads, Balance}
+  alias BBRF.Metrics.{Balance, NoSsAds}
 
   defmodule Broken do
     @behaviour BBRF.Metrics.Metric
@@ -41,15 +41,15 @@ defmodule BBRF.MetricsTest do
   end
 
   test "stores a row per station and metric, stamped with the run's start" do
-    assert Metrics.run([Balance, Ads], @first_run) == [{"balance", :ok}, {"ads", :ok}]
+    assert Metrics.run([Balance, NoSsAds], @first_run) == [{"balance", :ok}, {"no_ss_ads", :ok}]
 
     at = DateTime.to_iso8601(@first_run)
 
     assert rows() == [
-             ["ads", "station-1", 0.0, 0, at],
-             ["ads", "station-2", 0.0, 0, at],
              ["balance", "station-1", 0.5, 4, at],
-             ["balance", "station-2", 0.25, 4, at]
+             ["balance", "station-2", 0.25, 4, at],
+             ["no_ss_ads", "station-1", 1.0, 0, at],
+             ["no_ss_ads", "station-2", 1.0, 0, at]
            ]
   end
 
@@ -70,7 +70,7 @@ defmodule BBRF.MetricsTest do
   end
 
   test "drops the rows of metrics no longer listed" do
-    Metrics.run([Balance, Ads], @first_run)
+    Metrics.run([Balance, NoSsAds], @first_run)
     Metrics.run([Balance], @second_run)
 
     assert rows() |> Enum.map(&hd/1) |> Enum.uniq() == ["balance"]
@@ -93,7 +93,7 @@ defmodule BBRF.MetricsTest do
   end
 
   test "enrich/1 puts each station's stored metrics on it by stationuuid" do
-    Metrics.run([Balance, Ads], @first_run)
+    Metrics.run([Balance, NoSsAds], @first_run)
 
     assert Metrics.enrich([
              %{"stationuuid" => "station-1", "name" => "Example FM"},
@@ -103,8 +103,8 @@ defmodule BBRF.MetricsTest do
                "stationuuid" => "station-1",
                "name" => "Example FM",
                "metrics" => %{
-                 "ads" => %{"value" => 0.0, "sample" => 0},
-                 "balance" => %{"value" => 0.5, "sample" => 4}
+                 "balance" => %{"value" => 0.5, "sample" => 4},
+                 "no_ss_ads" => %{"value" => 1.0, "sample" => 0}
                }
              },
              %{"stationuuid" => "unscored", "metrics" => %{}}

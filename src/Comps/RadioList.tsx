@@ -12,6 +12,12 @@ const DraggableRadio = withDraggable(Radio, '.favs-grid')
 
 const GRID_MEDIA_QUERY = '(min-width: 768px)'
 
+const metricValue = (metric: string, radio: RadioType) =>
+  radio.metrics?.[metric]?.value ?? null
+
+const formatMetric = (value: number | null) =>
+  value == null ? 'n/a' : String(Number(value.toFixed(2)))
+
 interface Props {
   channels: RadioCollection
   lockStations: boolean
@@ -22,6 +28,8 @@ interface Props {
   currentOffset: number
   setCurrentOffset: (x: number) => void
   radioFilter: string
+  // the metric the server ranks the list by, highest first
+  sortMetric: string | undefined
 }
 
 const RadioList = ({
@@ -34,15 +42,19 @@ const RadioList = ({
   setCurrentOffset,
   api,
   radioFilter,
+  sortMetric,
 }: Props) => {
   const [selector, setSelector] = useState(0)
+
+  const activeMetric = isFavsList ? undefined : sortMetric
+
   const filteredChannels = channels.filter(
     R.pipe(R.prop('name'), R.toLower, R.includes(radioFilter))
   )
 
   useEffect(() => {
     setSelector(0)
-  }, [radioFilter])
+  }, [radioFilter, activeMetric])
 
   usePickWithKeys({
     setSelector,
@@ -74,6 +86,10 @@ const RadioList = ({
           currentOffset,
           setCurrentOffset,
           api,
+          detail:
+            activeMetric === undefined
+              ? undefined
+              : formatMetric(metricValue(activeMetric, x)),
         }
 
         return (

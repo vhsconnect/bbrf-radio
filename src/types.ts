@@ -1,5 +1,11 @@
 import { Schema } from 'effect'
 
+const MetricSchema = Schema.Struct({
+  // higher is better; null when the station lacks enough data to judge
+  value: Schema.NullOr(Schema.Number),
+  sample: Schema.Number,
+})
+
 const RadioSchema = Schema.Struct({
   stationuuid: Schema.String,
   url: Schema.String,
@@ -7,6 +13,10 @@ const RadioSchema = Schema.Struct({
   name: Schema.String,
   countrycode: Schema.String,
   bitrate: Schema.Number,
+  // keyed by metric name, only sent by the server's /by* routes
+  metrics: Schema.optional(
+    Schema.Record({ key: Schema.String, value: MetricSchema })
+  ),
 })
 
 export const RadioApiUpstreamSchema = Schema.Struct({

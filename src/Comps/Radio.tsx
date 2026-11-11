@@ -11,6 +11,8 @@ interface Props {
   setLockStations: (x: boolean) => void
   keyboardSelection: boolean
   api: Api
+  // shown after the name, e.g. the value the list is sorted by
+  detail?: string
 }
 
 const Radio = ({
@@ -20,12 +22,13 @@ const Radio = ({
   setLockStations,
   keyboardSelection,
   api,
+  detail,
 }: Props) => (
   <div className="fade-in">
     <Button
       alternateColor={keyboardSelection}
       disabled={lockStations}
-      text={info.name}
+      text={detail === undefined ? info.name : `${info.name} (${detail})`}
       onClick={() => {
         setStationController(info)
         setLockStations(true)

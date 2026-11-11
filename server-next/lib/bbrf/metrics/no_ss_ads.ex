@@ -1,8 +1,9 @@
-defmodule BBRF.Metrics.Ads do
+defmodule BBRF.Metrics.NoSsAds do
   @moduledoc """
-  Whether a station airs ads: 1.0 when at least three of its titles in the
-  window are ad breaks (`BBRF.AdMarkers`), else 0.0. Every observation
-  counts, parsed or not. `sample` is the ad break titles seen.
+  Whether a station is free of server-side inserted ads: 0.0 when at
+  least three of its titles in the window are ad breaks
+  (`BBRF.AdMarkers`), else 1.0. Every observation counts, parsed or not.
+  `sample` is the ad break titles seen.
   """
 
   @behaviour BBRF.Metrics.Metric
@@ -13,7 +14,7 @@ defmodule BBRF.Metrics.Ads do
   @min_matches 3
 
   @impl true
-  def name, do: "ads"
+  def name, do: "no_ss_ads"
 
   @impl true
   def compute(stationuuids, since) do
@@ -36,7 +37,7 @@ defmodule BBRF.Metrics.Ads do
       matches = for {true, n} <- titles, reduce: 0, do: (acc -> acc + n)
 
       if plays >= Metrics.min_plays(),
-        do: [{stationuuid, if(matches >= @min_matches, do: 1.0, else: 0.0), matches}],
+        do: [{stationuuid, if(matches >= @min_matches, do: 0.0, else: 1.0), matches}],
         else: []
     end)
   end

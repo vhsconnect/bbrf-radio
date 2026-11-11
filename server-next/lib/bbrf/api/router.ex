@@ -12,6 +12,9 @@ defmodule BBRF.API.Router do
   ingested track history (`BBRF.History`) and page like the other
   `/by*` routes. The stations of every `/by*` route carry their
   `station_metrics` rows under `"metrics"` (`BBRF.Metrics.enrich/1`).
+  With `?sort=<metric>` (one of `/metrics`) a `/by*` route ranks the
+  local catalogue by that metric instead (`BBRF.Metrics.ranked/4`), as
+  radio-browser cannot.
   """
 
   use Plug.Router
@@ -39,28 +42,32 @@ defmodule BBRF.API.Router do
     json(conn, %{value: Env.int("FADER_VALUE", 25)})
   end
 
+  get "/metrics" do
+    json(conn, Metrics.names())
+  end
+
   get "/radio-server" do
     json(conn, %{server: URI.parse(RadioBrowser.base_url()).host})
   end
 
   get "/bytag/:tag" do
-    search(conn, "stations/bytagexact/#{segment(tag)}")
+    stations(conn, {:tag, tag}, radio_browser("stations/bytagexact/#{segment(tag)}"))
   end
 
   get "/bycountrycode/:cc" do
-    search(conn, "stations/bycountrycodeexact/#{segment(cc)}")
+    stations(
+      conn,
+      {:countrycode, cc},
+      radio_browser("stations/bycountrycodeexact/#{segment(cc)}")
+    )
   end
 
   get "/byname/:name" do
-    search(conn, "stations/byname/#{segment(name)}")
+    stations(conn, {:station, name}, radio_browser("stations/byname/#{segment(name)}"))
   end
 
   get "/bytrack/:query" do
-    paged(conn, fn offset, limit ->
-      query
-      |> History.search(limit, offset)
-      |> Metrics.enrich()
-    end)
+    stations(conn, {:track, query}, &History.search(query, &2, &1))
   end
 
   get "/tracks" do
@@ -122,13 +129,22 @@ defmodule BBRF.API.Router do
     send_resp(conn, 404, "not found")
   end
 
-  defp search(conn, endpoint) do
-    paged(conn, fn offset, limit ->
-      endpoint
-      |> RadioBrowser.get_json(offset: offset, limit: limit)
-      |> Metrics.enrich()
-    end)
+  defp stations(conn, filter, fetch) do
+    conn = fetch_query_params(conn)
+
+    case conn.query_params["sort"] do
+      nil ->
+        paged(conn, &Metrics.enrich(fetch.(&1, &2)))
+
+      metric ->
+        if metric in Metrics.names(),
+          do: paged(conn, &Metrics.ranked(filter, metric, &2, &1)),
+          else: bad_param(conn, "sort", metric, Metrics.names())
+    end
   end
+
+  defp radio_browser(endpoint),
+    do: &RadioBrowser.get_json(endpoint, offset: &1, limit: &2)
 
   defp paged(conn, fetch), do: paged(conn, Env.int("ITEMS_PER_PAGE", 5000), fetch)
 

@@ -37,7 +37,7 @@ const withSplashed = (Child: React.FC<any>) => (props: Props) => {
         }
       }
     }
-  }, [info])
+  }, [info, paginationTarget])
 
   return (
     <span id={props.observerId}>

@@ -18,8 +18,9 @@ defmodule BBRF.Metrics do
   """
 
   require Logger
-  alias BBRF.{Env, IngestStat, Repo}
-  alias BBRF.Metrics.{Ads, Balance, International}
+  alias BBRF.{Env, History, IngestStat, Repo}
+  alias BBRF.Ingester.Stations
+  alias BBRF.Metrics.{Balance, International, NoSsAds}
 
   @chunk 500
 
@@ -28,7 +29,9 @@ defmodule BBRF.Metrics do
   @doc "The fewest plays in the window a station needs to be scored."
   def min_plays, do: Env.int("METRICS_MIN_PLAYS", 50)
 
-  def all, do: [International, Balance, Ads]
+  def all, do: [International, Balance, NoSsAds]
+
+  def names, do: Enum.map(all(), & &1.name())
 
   @doc """
   Compute `metrics` once at `now`. A metric that raises is recorded and
@@ -57,6 +60,34 @@ defmodule BBRF.Metrics do
     Enum.map(stations, fn station ->
       Map.put(station, "metrics", Map.get(by_station, station["stationuuid"], %{}))
     end)
+  end
+
+  @doc """
+  Catalogue stations matching `filter` (`BBRF.History.station_condition/1`),
+  highest `metric` value first, enriched like `enrich/1`. Stations without
+  a value come last; ties go by name. Stations the catalogue sync marked
+  removed are left out.
+  """
+  @spec ranked({atom(), String.t()}, String.t(), pos_integer(), non_neg_integer()) :: [map()]
+  def ranked(filter, metric, limit, offset) do
+    {condition, params} = History.station_condition(filter)
+
+    %{rows: rows} =
+      Repo.query!(
+        """
+        SELECT #{Enum.map_join(Stations.api_columns(), ", ", &"s.#{&1}")}
+          FROM stations s
+          LEFT JOIN station_metrics m ON m.stationuuid = s.stationuuid AND m.metric = ?
+         WHERE s.meta_state != 'removed' AND #{condition}
+         ORDER BY m.value IS NULL, m.value DESC, s.name COLLATE NOCASE, s.stationuuid
+         LIMIT ? OFFSET ?
+        """,
+        [metric | params] ++ [limit, offset]
+      )
+
+    rows
+    |> Enum.map(&Stations.to_api/1)
+    |> enrich()
   end
 
   defp for_stations(stationuuids) do

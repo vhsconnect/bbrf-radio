@@ -24,6 +24,7 @@ import Player from './Player'
 import Button from './Button'
 import Toggle from './Toggle'
 import RadioList from './RadioList'
+import Checkbox from './Checkbox'
 import Tracklist from './Tracklist'
 
 const DEFAULT_FADER_VALUE = 25
@@ -63,8 +64,11 @@ export type Api = {
   searchField: (
     searchField: SearchField,
     value: string,
-    currentOffset: number
+    currentOffset: number,
+    sortMetric: string | undefined
   ) => Effect.Effect<RadioCollection, UnknownException, never>
+  // names a searchField can be sorted by, empty when sorting is unsupported
+  metrics: () => Effect.Effect<ReadonlyArray<string>, never, never>
   fader: () => Effect.Effect<number, number, never>
   radioServer: () => Effect.Effect<Option.Option<string>, never, never>
   clicked: (uuid: string) => Effect.Effect<unknown, never, never>
@@ -95,6 +99,12 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     string | undefined | null
   >('')
   const [radioFilter, setRadioFilter] = React.useState<string>('')
+  const [metricNames, setMetricNames] = React.useState<ReadonlyArray<string>>(
+    []
+  )
+  const [sortMetric, setSortMetric] = React.useState<string | undefined>(
+    undefined
+  )
   const [faderValue, setFaderValue] =
     React.useState<number>(DEFAULT_FADER_VALUE)
   const [statusStack, setStatusStack] = React.useState<string[]>([])
@@ -127,14 +137,28 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
       searchField: (
         searchField: SearchField,
         value: string,
-        currentOffset: number
+        currentOffset: number,
+        sortMetric: string | undefined
       ) =>
         Effect.tryPromise(() =>
           request(
             `/by${searchField}/${encodeURIComponent(
               value
-            )}?offset=${currentOffset}`
+            )}?offset=${currentOffset}${
+              sortMetric === undefined
+                ? ''
+                : `&sort=${encodeURIComponent(sortMetric)}`
+            }`
           ).then(Schema.decodeUnknownPromise(RadioCollectionSchema))
+        ),
+      metrics: () =>
+        pipe(
+          Effect.tryPromise(() =>
+            request('/metrics').then(
+              Schema.decodeUnknownPromise(Schema.Array(Schema.String))
+            )
+          ),
+          Effect.orElseSucceed((): ReadonlyArray<string> => [])
         ),
       addFavorite: (radioPayload: Radio) =>
         Effect.tryPromise(() =>
@@ -255,6 +279,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
       clicked: (uuid: string) =>
         Effect.promise(() => radioApi.clickStation(radioBrowserApiUrl, uuid)),
       // server only
+      metrics: () => Effect.succeed<ReadonlyArray<string>>([]),
       tracks: () => Effect.succeed<Tracklisting>([]),
       nowPlaying: () => Promise.resolve(undefined),
     },
@@ -317,9 +342,14 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     fetchPage:
       mode === 'radio' && search
         ? (offset: number) =>
-            api.searchField(search.searchField, search.value, offset)
+            api.searchField(
+              search.searchField,
+              search.value,
+              offset,
+              sortMetric
+            )
         : undefined,
-    resetOn: [mode, tag, countrycode, name, track],
+    resetOn: [mode, tag, countrycode, name, track, sortMetric],
     setItems: setChannels,
     messageUser,
     label: 'radios',
@@ -363,6 +393,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
 
   React.useEffect(() => {
     Effect.runPromise(api.fader()).then(x => setFaderValue(x))
+    Effect.runPromise(api.metrics()).then(setMetricNames)
   }, [])
 
   React.useEffect(() => {
@@ -379,58 +410,76 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
     <div>
       <div className="sticky">
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div>
-            <input
-              ref={tagsInput}
-              className="input-fields"
-              type="text"
-              id="tags"
-              placeholder="by tag"
-            />
-            <input
-              ref={ccInput}
-              className="input-fields"
-              type="text"
-              id="countrycode"
-              placeholder="by countrycode"
-            />
-            <input
-              ref={nameInput}
-              className="input-fields"
-              type="text"
-              id="name"
-              placeholder="by name"
-            />
-            {serverMode && (
+          <div className="search-bar">
+            <div>
               <input
-                ref={trackInput}
+                ref={tagsInput}
                 className="input-fields"
                 type="text"
-                id="track"
-                placeholder="by artist/track"
+                id="tags"
+                placeholder="by tag"
               />
-            )}
-            <Button
-              text="favs"
-              disabled={false}
-              onClick={() => {
-                Effect.runPromise(api.favorites())
-                  .then(
-                    R.tap(() => {
-                      setCountrycode('')
-                      setTag('')
-                      setName('')
-                      setTrack('')
-                      setMode('radio')
-                    })
-                  )
-                  .then(setChannels)
-                  .then(R.tap(() => setRadioFilter('')))
-                  .catch(() => messageUser("Couldn't fetch favorties"))
-              }}
-            />
-            {serverMode && (
-              <Toggle options={MODES} value={mode} onChange={setMode} />
+              <input
+                ref={ccInput}
+                className="input-fields"
+                type="text"
+                id="countrycode"
+                placeholder="by countrycode"
+              />
+              <input
+                ref={nameInput}
+                className="input-fields"
+                type="text"
+                id="name"
+                placeholder="by name"
+              />
+              {serverMode && (
+                <input
+                  ref={trackInput}
+                  className="input-fields"
+                  type="text"
+                  id="track"
+                  placeholder="by artist/track"
+                />
+              )}
+              <Button
+                text="favs"
+                disabled={false}
+                onClick={() => {
+                  Effect.runPromise(api.favorites())
+                    .then(
+                      R.tap(() => {
+                        setCountrycode('')
+                        setTag('')
+                        setName('')
+                        setTrack('')
+                        setMode('radio')
+                      })
+                    )
+                    .then(setChannels)
+                    .then(R.tap(() => setRadioFilter('')))
+                    .catch(() => messageUser("Couldn't fetch favorties"))
+                }}
+              />
+              {serverMode && (
+                <Toggle options={MODES} value={mode} onChange={setMode} />
+              )}
+            </div>
+            {metricNames.length > 0 && (
+              <div className="metric-sort">
+                {metricNames.map(metric => (
+                  <Checkbox
+                    key={metric}
+                    text={metric}
+                    title={`sort by ${metric}, highest first`}
+                    checked={metric === sortMetric}
+                    disabled={!search || mode !== 'radio'}
+                    onChange={checked =>
+                      setSortMetric(checked ? metric : undefined)
+                    }
+                  />
+                ))}
+              </div>
             )}
           </div>
           <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
@@ -502,6 +551,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
             setCurrentOffset={radioPages.setCurrentOffset}
             currentOffset={radioPages.currentOffset}
             radioFilter={radioFilter}
+            sortMetric={sortMetric}
             api={api}
           />
         )}

@@ -57,6 +57,15 @@ button {
     border-color: seagreen;
 }
 
+.search-bar {
+    display: flex;
+    flex-direction: column;
+}
+
+.metric-sort {
+    margin: 5px 0;
+}
+
 .checkbox {
     display: inline-flex;
     align-items: center;
@@ -83,6 +92,11 @@ button {
     background-image:
         linear-gradient(45deg, transparent 40%, seagreen 40%, seagreen 60%, transparent 60%),
         linear-gradient(-45deg, transparent 40%, seagreen 40%, seagreen 60%, transparent 60%);
+}
+
+.checkbox.disabled {
+    cursor: default;
+    opacity: 0.4;
 }
 
 .checkbox input:focus-visible {

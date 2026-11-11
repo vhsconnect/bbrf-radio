@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 const API_ROUTES = [
   'favorites',
   'fader',
+  'metrics',
   'radio-server',
   'bytag',
   'bycountrycode',
