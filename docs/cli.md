@@ -37,3 +37,14 @@ With the ingester in Docker and the CLI on the host, keep the checkout on the sa
     metrics: finished in 214.3s
 
 A failed metric prints `metrics: <name> failed: <reason>` to stderr and keeps its rows from the previous run; the others still run. The exit code is 1 when a metric failed or the database is missing migrations, 0 otherwise. Each metric's outcome is also recorded in `ingest_stats` under `metric:<name>`.
+
+## Favorites export
+
+Prints the favorites to stdout as JSON, in the shape `GET /favorites` returns: an array of `{stationuuid, url, name, countrycode, bitrate}` in the order they were added.
+
+    make favorites-export > favorites.json                                 # on the host
+    docker compose exec bbrf bin/bbrf eval "BBRF.Favorites.CLI.main()" > favorites.json # in the container
+
+`make favorites-export` reads `$(STATE_DIR)/db.sqlite`, or `DB=`. Compile output and nix warnings go to stderr, so stdout holds only the JSON.
+
+The output is not what `FAVORITES_IMPORT_FILE` reads: that is the node server's `storage.json`, an object with the array under `"favorites"`.

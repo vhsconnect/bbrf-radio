@@ -1,6 +1,7 @@
 node_modules/
 index.js
 storage.json
+favorites.json
 storage-backup.json
 storage.back.json
 scratch

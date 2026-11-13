@@ -19,7 +19,7 @@ RESET  := \033[0m
 # $(call prefix,<color>,<label>) tags each line of a piped stream with a colored label
 prefix = 2>&1 | while IFS= read -r line; do printf '$(1)[$(2)]$(RESET) %s\n' "$$line"; done
 
-.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test metrics status status-watch age-key secrets secrets-renew secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -71,6 +71,11 @@ test:
 # station metrics, computed once against $(DB); fine next to a running server
 metrics:
 	cd server-next && BBRF_DB=$(DB) $(NIX) mix run --no-start -e "BBRF.Metrics.CLI.main()"
+
+# favorites from $(DB) to stdout, in the shape GET /favorites returns; '@' and the compile
+# to stderr keep everything but the JSON off stdout
+favorites-export:
+	@cd server-next && BBRF_DB=$(DB) $(NIX) sh -c "mix compile >&2 && mix run --no-compile --no-start -e 'BBRF.Favorites.CLI.main()'"
 
 status:
 	$(NIX) sqlite3 -readonly $(DB) < server-next/scripts/status.sql

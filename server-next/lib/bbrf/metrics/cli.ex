@@ -14,23 +14,21 @@ defmodule BBRF.Metrics.CLI do
   database is behind or a metric failed.
   """
 
-  alias BBRF.{Metrics, Repo}
+  alias BBRF.{CLI, Metrics}
 
   @handler_id "bbrf-metrics-cli"
 
   def main do
-    :ok = loaded(Application.load(:bbrf))
-    {:ok, _} = Application.ensure_all_started(:ecto_sqlite3)
-    {:ok, _} = Repo.start_link(pool_size: 1, log: false)
+    :ok = CLI.start_repo()
 
-    case pending_migrations() do
+    case CLI.pending_migrations() do
       [] ->
         start = System.monotonic_time(:millisecond)
         attach()
 
         IO.puts(
           "metrics: computing #{Enum.map_join(Metrics.all(), ", ", & &1.name())} " <>
-            "over the last #{Metrics.window_days()} days in #{database()}"
+            "over the last #{Metrics.window_days()} days in #{CLI.database()}"
         )
 
         Metrics.run() |> report(start) |> System.halt()
@@ -81,15 +79,6 @@ defmodule BBRF.Metrics.CLI do
   end
 
   defp quarter(done, total), do: div(done * 4, total)
-
-  defp loaded(:ok), do: :ok
-  defp loaded({:error, {:already_loaded, :bbrf}}), do: :ok
-
-  defp database, do: Application.get_env(:bbrf, Repo, [])[:database]
-
-  defp pending_migrations do
-    for {:down, version, _name} <- Ecto.Migrator.migrations(Repo), do: version
-  end
 
   defp report(results, start) do
     took = seconds(System.monotonic_time(:millisecond) - start)
