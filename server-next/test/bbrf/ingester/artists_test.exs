@@ -209,6 +209,18 @@ defmodule BBRF.Ingester.ArtistsTest do
                Artists.due(DateTime.add(Metatable.now(), 7, :day), 10)
     end
 
+    test "takes credits never tried before retries, even ones played more" do
+      play("gummihuset.se", "Reklam", 10)
+      [ad] = Artists.due(Metatable.now(), 10)
+      Artists.store({:ok, {ad, :unresolved}}, Metatable.now())
+      play("Queen", "Bohemian Rhapsody")
+
+      assert Enum.map(Artists.due(DateTime.add(Metatable.now(), 7, :day), 10), & &1.name) == [
+               "Queen",
+               "gummihuset.se"
+             ]
+    end
+
     test "a batch of 0 tries nothing" do
       play("Queen", "Bohemian Rhapsody")
       assert Artists.due(Metatable.now(), 0) == []

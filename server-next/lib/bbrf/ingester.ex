@@ -13,8 +13,8 @@ defmodule BBRF.Ingester do
     * track waves (every TRACK_CYCLE_MINUTES, default 1): check the
       stations the TRACK_STRATEGY selects, see `BBRF.Ingester.Track` and
       `BBRF.Ingester.Track.Strategy`
-    * artists (every ARTIST_RESOLVE_MINUTES, default 10): resolve the
-      most played artist credits to MusicBrainz artists, see
+    * artists (every ARTIST_RESOLVE_MINUTES, default 10): resolve artist
+      credits never tried, then retries, to MusicBrainz artists, see
       `BBRF.Ingester.Artists`
     * empty (every EMPTY_MINUTES, default 60): a no-op, see `BBRF.Ingester.Empty`
     * retention (every PRUNE_HOURS, default 24): delete track observations

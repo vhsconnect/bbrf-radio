@@ -1,8 +1,8 @@
 defmodule BBRF.Ingester.Artists do
   @moduledoc """
   Resolves artist credits (`BBRF.ArtistCredit`) to MusicBrainz artists,
-  most played first, in the `:musicbrainz` lane of
-  `BBRF.Ingester.WorkQueue`.
+  credits never tried before any retry, each most played first, in the
+  `:musicbrainz` lane of `BBRF.Ingester.WorkQueue`.
 
   A recording search on a credit's most played title and the words of
   the credit, both cleaned up by `BBRF.Ingester.Artists.Cleanup`,
@@ -77,9 +77,10 @@ defmodule BBRF.Ingester.Artists do
   end
 
   @doc """
-  The credits to try at `now`, most played first, at most `limit`: those
-  never tried and the unresolved ones due again, each with the spelling
-  and title it was played with most.
+  The credits to try at `now`, at most `limit`: those never tried, then
+  the unresolved ones due again, each most played first and with the
+  spelling and title it was played with most. Retries wait for as long
+  as untried credits keep coming.
   """
   def due(_now, limit) when limit <= 0, do: []
 
@@ -94,7 +95,7 @@ defmodule BBRF.Ingester.Artists do
            AND o.title IS NOT NULL
            AND (c.id IS NULL OR (c.status = 'unresolved' AND c.next_check_at <= ?))
          GROUP BY o.artist_credit_id
-         ORDER BY COUNT(*) DESC, o.artist_credit_id
+         ORDER BY c.id IS NOT NULL, COUNT(*) DESC, o.artist_credit_id
          LIMIT ?
         """,
         [DateTime.to_iso8601(now), limit]
