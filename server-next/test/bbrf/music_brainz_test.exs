@@ -157,4 +157,27 @@ defmodule BBRF.MusicBrainzTest do
     assert second - first >= 90
     assert third - second >= 90
   end
+
+  test "reports every request, a retried one each time, with its wait for a slot", %{busy: busy} do
+    test_pid = self()
+    handler = "musicbrainz-test-#{inspect(test_pid)}"
+
+    :telemetry.attach(
+      handler,
+      [:bbrf, :musicbrainz, :request],
+      fn _event, measurements, meta, pid ->
+        if self() == pid, do: send(pid, {:request, meta.path, meta.result, measurements})
+      end,
+      test_pid
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+    :counters.put(busy, 1, 1)
+
+    MusicBrainz.lookup(:artist, "busy")
+
+    assert_received {:request, "artist/busy", {:ok, 503}, _measurements}
+    assert_received {:request, "artist/busy", {:ok, 200}, %{duration: duration, wait: wait}}
+    assert duration > 0 and wait >= 0
+  end
 end

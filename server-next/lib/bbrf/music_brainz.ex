@@ -15,6 +15,9 @@ defmodule BBRF.MusicBrainz do
   intervals; nothing else is retried. MUSICBRAINZ_BASE_URL points at a
   mirror instead.
 
+  Every request, a retry included, emits `[:bbrf, :musicbrainz, :request]`
+  with how long it took and how long it waited for its slot.
+
   Entities are atoms, `:release_group` for `release-group`. Options
   become query params: `inc:` and the release `type:`/`status:`
   filters take lists, anything else (`limit:`, `offset:`, `dismax:`,
@@ -116,18 +119,25 @@ defmodule BBRF.MusicBrainz do
   the retries of a 503 are spent.
   """
   def get_json(path, opts \\ []) do
-    get("#{base_url()}/#{path}", [{:fmt, "json"} | Enum.map(opts, &query_param/1)], @busy_backoff)
+    get(path, [{:fmt, "json"} | Enum.map(opts, &query_param/1)], @busy_backoff)
   end
 
-  defp get(url, params, backoff) do
-    wait_for_slot()
+  defp get(path, params, backoff) do
+    url = "#{base_url()}/#{path}"
+    wait = wait_for_slot()
+    start = System.monotonic_time()
 
-    case Req.get(url,
-           params: params,
-           headers: [{"user-agent", @user_agent}, {"accept", "application/json"}],
-           receive_timeout: 10_000,
-           retry: false
-         ) do
+    response =
+      Req.get(url,
+        params: params,
+        headers: [{"user-agent", @user_agent}, {"accept", "application/json"}],
+        receive_timeout: 10_000,
+        retry: false
+      )
+
+    emit_request(path, params, response, System.monotonic_time() - start, wait)
+
+    case response do
       {:ok, %Req.Response{status: 200, body: body}} when is_map(body) ->
         body
 
@@ -144,7 +154,7 @@ defmodule BBRF.MusicBrainz do
         case backoff do
           [intervals | rest] ->
             defer_slots(intervals * interval_ms())
-            get(url, params, rest)
+            get(path, params, rest)
 
           [] ->
             defer_slots(List.last(@busy_backoff) * interval_ms())
@@ -157,6 +167,20 @@ defmodule BBRF.MusicBrainz do
       {:error, exception} ->
         raise "#{url} request failed: #{Exception.message(exception)}"
     end
+  end
+
+  defp emit_request(path, params, response, duration, wait) do
+    result =
+      case response do
+        {:ok, %Req.Response{status: status}} -> {:ok, status}
+        {:error, exception} -> {:error, Exception.message(exception)}
+      end
+
+    :telemetry.execute([:bbrf, :musicbrainz, :request], %{duration: duration, wait: wait}, %{
+      path: path,
+      params: params,
+      result: result
+    })
   end
 
   # inc values are space separated, which the query string encodes as
@@ -177,8 +201,10 @@ defmodule BBRF.MusicBrainz do
   defp encode(value), do: URI.encode(value, &URI.char_unreserved?/1)
 
   defp wait_for_slot do
+    start = System.monotonic_time()
     slot = claim_slot(slots(), interval_ms())
     Process.sleep(max(slot - System.monotonic_time(:millisecond), 0))
+    System.monotonic_time() - start
   end
 
   # compare-and-swap on the time of the last claimed slot, so concurrent

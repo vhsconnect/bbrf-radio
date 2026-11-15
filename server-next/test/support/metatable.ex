@@ -22,6 +22,8 @@ defmodule BBRF.Metatable do
       %{
         stationuuid: "station-1",
         changeuuid: "change-1",
+        name: "Example FM",
+        countrycode: "US",
         stream_url: "http://example.com:8000/live",
         meta_state: "unknown",
         meta_source: nil,

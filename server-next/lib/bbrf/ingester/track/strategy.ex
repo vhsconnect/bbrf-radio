@@ -34,6 +34,8 @@ defmodule BBRF.Ingester.Track.Strategy do
   @type candidate :: %{
           stationuuid: String.t(),
           changeuuid: String.t() | nil,
+          name: String.t() | nil,
+          countrycode: String.t() | nil,
           stream_url: String.t(),
           meta_state: String.t(),
           meta_source: String.t() | nil,
@@ -123,6 +125,8 @@ defmodule BBRF.Ingester.Track.Strategy do
       select: %{
         stationuuid: s.stationuuid,
         changeuuid: s.changeuuid,
+        name: s.name,
+        countrycode: s.countrycode,
         stream_url: fragment("COALESCE(NULLIF(?, ''), ?)", s.url_resolved, s.url),
         meta_state: s.meta_state,
         meta_source: s.meta_source,

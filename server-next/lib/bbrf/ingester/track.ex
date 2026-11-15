@@ -135,16 +135,32 @@ defmodule BBRF.Ingester.Track do
   stations known to only serve ICY, otherwise 'icecast', falling back to
   'icy' when the status page was reachable but gave no title.
   """
-  def fetch_observation(%{meta_source: "icy"} = station), do: {"icy", fetch_icy(station)}
+  def fetch_observation(%{meta_source: "icy"} = station),
+    do: {"icy", timed(station, "icy", &fetch_icy/1)}
 
   def fetch_observation(station) do
-    case fetch_status(station) do
+    case timed(station, "icecast", &fetch_status/1) do
       {:ok, %{raw_title: title}} = result when title != nil -> {"icecast", result}
       # host down or url unusable: the stream would fail the same way
       {:error, _detail} = result -> {"icecast", result}
       :no_status_url -> {"icecast", :no_status_url}
-      _no_title -> {"icy", fetch_icy(station)}
+      _no_title -> {"icy", timed(station, "icy", &fetch_icy/1)}
     end
+  end
+
+  defp timed(station, method, fetch) do
+    start = System.monotonic_time()
+    result = fetch.(station)
+    emit_fetch(station, method, result, System.monotonic_time() - start)
+    result
+  end
+
+  defp emit_fetch(station, method, result, duration) do
+    :telemetry.execute([:bbrf, :track, :fetch], %{duration: duration}, %{
+      station: station,
+      method: method,
+      result: result
+    })
   end
 
   @doc """
@@ -620,8 +636,13 @@ defmodule BBRF.Ingester.Track do
 
   defp wave_result({:ok, {station, fetched}}), do: {station, fetched}
 
-  defp wave_result({:exit, {station, :timeout}}),
-    do: {station, {station.meta_source, {:error, "timeout"}}}
+  # the killed request never reports its own duration
+  defp wave_result({:exit, {station, :timeout}}) do
+    result = {:error, "timeout"}
+    duration = System.convert_time_unit(@task_timeout_ms, :millisecond, :native)
+    emit_fetch(station, station.meta_source, result, duration)
+    {station, {station.meta_source, result}}
+  end
 
   defp wave_result({:exit, {station, reason}}),
     do: {station, {station.meta_source, {:error, "task crashed: " <> inspect(reason)}}}

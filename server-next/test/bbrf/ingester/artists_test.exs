@@ -276,6 +276,32 @@ defmodule BBRF.Ingester.ArtistsTest do
       assert next_check_at > DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), 6, :day))
     end
 
+    test "reports how each credit came out and how long it took" do
+      test_pid = self()
+      handler = "resolve-test-#{inspect(test_pid)}"
+
+      :telemetry.attach(
+        handler,
+        [:bbrf, :artists, :resolve],
+        fn _event, %{duration: duration}, meta, pid ->
+          send(pid, {:resolve, meta.credit.name, meta.result, duration})
+        end,
+        test_pid
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+      play("Beyoncé", "Halo", 2)
+      play("gummihuset.se", "Reklam")
+
+      Artists.resolve_due()
+
+      assert_received {:resolve, "Beyoncé", {:resolved, [%{artist_mbid: "mbid-beyonce"}], [_]},
+                       duration}
+
+      assert_received {:resolve, "gummihuset.se", :unresolved, _duration}
+      assert duration > 0
+    end
+
     test "does not look up a profile it already has" do
       play("Beyoncé", "Halo")
       Artists.resolve_due()

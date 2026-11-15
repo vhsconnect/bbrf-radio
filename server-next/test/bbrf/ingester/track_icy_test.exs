@@ -134,6 +134,29 @@ defmodule BBRF.Ingester.TrackIcyTest do
     assert {"icecast", {:ok, %{raw_title: "From Status"}}} = Track.fetch_observation(station)
   end
 
+  test "reports how long each request took" do
+    test_pid = self()
+    handler = "fetch-test-#{inspect(test_pid)}"
+
+    :telemetry.attach(
+      handler,
+      [:bbrf, :track, :fetch],
+      fn _event, %{duration: duration}, meta, pid ->
+        if self() == pid, do: send(pid, {:fetch, meta.method, meta.result, duration})
+      end,
+      test_pid
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    station = serve(%{stream: icy_stream("StreamTitle='From ICY';")})
+    Track.fetch_observation(station)
+
+    assert_received {:fetch, "icecast", :no_status_page, icecast_duration}
+    assert_received {:fetch, "icy", {:ok, %{raw_title: "From ICY"}}, icy_duration}
+    assert icecast_duration > 0 and icy_duration > 0
+  end
+
   test "goes straight to ICY for stations known to only serve it" do
     station =
       serve(%{status_page: "From Status", stream: icy_stream("StreamTitle='From ICY';")})

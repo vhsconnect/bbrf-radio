@@ -18,6 +18,9 @@ defmodule BBRF.Ingester.Artists do
   Every ARTIST_RESOLVE_MINUTES (10), up to ARTIST_RESOLVE_BATCH (300)
   credits are tried; 0 turns the resolver off. A credit whose requests
   fail is left as it was and comes up again on the next round.
+
+  Every credit tried emits `[:bbrf, :artists, :resolve]` with how long it
+  took and what came of it: `resolve/1`'s result, `:failed` or `:timeout`.
   """
 
   require Logger
@@ -46,7 +49,7 @@ defmodule BBRF.Ingester.Artists do
 
       counts =
         WorkQueue
-        |> WorkQueue.async_stream(:musicbrainz, credits, &{&1, resolve(&1)},
+        |> WorkQueue.async_stream(:musicbrainz, credits, &timed_resolve/1,
           timeout: @job_timeout_ms
         )
         |> Enum.reduce(%{}, fn element, counts ->
@@ -113,6 +116,27 @@ defmodule BBRF.Ingester.Artists do
 
       %{id: id, name: name, title: title, attempts: attempts}
     end)
+  end
+
+  defp timed_resolve(credit) do
+    start = System.monotonic_time()
+
+    try do
+      result = resolve(credit)
+      emit_resolve(credit, result, System.monotonic_time() - start)
+      {credit, result}
+    rescue
+      exception ->
+        emit_resolve(credit, :failed, System.monotonic_time() - start)
+        reraise exception, __STACKTRACE__
+    end
+  end
+
+  defp emit_resolve(credit, result, duration) do
+    :telemetry.execute([:bbrf, :artists, :resolve], %{duration: duration}, %{
+      credit: credit,
+      result: result
+    })
   end
 
   @doc """
@@ -334,6 +358,15 @@ defmodule BBRF.Ingester.Artists do
   end
 
   def store({:exit, {credit, reason}}, _now) do
+    # a job killed at the timeout never reports its own duration
+    if reason == :timeout do
+      emit_resolve(
+        credit,
+        :timeout,
+        System.convert_time_unit(@job_timeout_ms, :millisecond, :native)
+      )
+    end
+
     Logger.debug("artist credit #{inspect(credit.name)} failed: #{inspect(reason)}")
     :failed
   end
