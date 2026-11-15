@@ -20,7 +20,7 @@ defmodule BBRF.Metrics do
   require Logger
   alias BBRF.{Env, History, IngestStat, Repo}
   alias BBRF.Ingester.Stations
-  alias BBRF.Metrics.{Balance, International, NoSsAds}
+  alias BBRF.Metrics.{Balance, International, NoSsAds, Obscure500, Obscure1500, Obscure2500}
 
   @chunk 500
 
@@ -29,7 +29,7 @@ defmodule BBRF.Metrics do
   @doc "The fewest plays in the window a station needs to be scored."
   def min_plays, do: Env.int("METRICS_MIN_PLAYS", 50)
 
-  def all, do: [International, Balance, NoSsAds]
+  def all, do: [International, Balance, NoSsAds, Obscure500, Obscure1500, Obscure2500]
 
   def names, do: Enum.map(all(), & &1.name())
 

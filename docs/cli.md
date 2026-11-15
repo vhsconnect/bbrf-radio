@@ -29,7 +29,7 @@ With the ingester in Docker and the CLI on the host, keep the checkout on the sa
 
 ### Output
 
-    metrics: computing international, balance, no_ss_ads over the last 60 days in /var/lib/bbrf/db.sqlite
+    metrics: computing international, balance, no_ss_ads, obscure_500, obscure_1500, obscure_2500 over the last 60 days in /var/lib/bbrf/db.sqlite
     metrics: international 25%
     ...
     metrics: international done, 25159 of 34870 stations scored in 74.1s
