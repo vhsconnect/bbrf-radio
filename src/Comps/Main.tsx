@@ -5,6 +5,7 @@ import type { UnknownException } from 'effect/Cause'
 import useRegisterObservables from '../hooks/useRegisterObservables'
 import useFilterRadios from '../hooks/useFilterRadios'
 import usePagination from '../hooks/usePagination'
+import useStoredFlag from '../hooks/useStoredFlag'
 import radioL from '../utils/radioModel'
 import { discoverRadioBrowserApiUrl } from '../utils/radioBrowserDiscovery'
 import { request } from '../utils/httpHandlers'
@@ -24,11 +25,12 @@ import Player from './Player'
 import Button from './Button'
 import Toggle from './Toggle'
 import RadioList from './RadioList'
-import Checkbox from './Checkbox'
+import ViewOptions from './ViewOptions'
 import Tracklist from './Tracklist'
 
 const DEFAULT_FADER_VALUE = 25
 const DEFAULT_RESULT_LIMIT = 2000
+const FAVS_GRID_STORAGE_KEY = 'bbrf-favs-grid'
 
 interface Props {
   serverMode: boolean
@@ -105,6 +107,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
   const [sortMetric, setSortMetric] = React.useState<string | undefined>(
     undefined
   )
+  const [favsGrid, setFavsGrid] = useStoredFlag(FAVS_GRID_STORAGE_KEY, true)
   const [faderValue, setFaderValue] =
     React.useState<number>(DEFAULT_FADER_VALUE)
   const [statusStack, setStatusStack] = React.useState<string[]>([])
@@ -338,6 +341,8 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
 
   const search = activeSearch()
 
+  const isFavsView = mode === 'radio' && !search
+
   const radioPages = usePagination({
     fetchPage:
       mode === 'radio' && search
@@ -465,22 +470,15 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
                 <Toggle options={MODES} value={mode} onChange={setMode} />
               )}
             </div>
-            {metricNames.length > 0 && (
-              <div className="metric-sort">
-                {metricNames.map(metric => (
-                  <Checkbox
-                    key={metric}
-                    text={metric}
-                    title={`sort by ${metric}, highest first`}
-                    checked={metric === sortMetric}
-                    disabled={!search || mode !== 'radio'}
-                    onChange={checked =>
-                      setSortMetric(checked ? metric : undefined)
-                    }
-                  />
-                ))}
-              </div>
-            )}
+            <ViewOptions
+              isFavsView={isFavsView}
+              mode={mode}
+              favsGrid={favsGrid}
+              setFavsGrid={setFavsGrid}
+              metricNames={metricNames}
+              sortMetric={sortMetric}
+              setSortMetric={setSortMetric}
+            />
           </div>
           <p className="mobile-hidden" style={{ paddingRight: '10px' }}>
             {userAgent.split(' ')[1]}
@@ -552,6 +550,7 @@ export default function Main({ radioBrowserApiUrl, serverMode }: Props) {
             currentOffset={radioPages.currentOffset}
             radioFilter={radioFilter}
             sortMetric={sortMetric}
+            favsGrid={favsGrid}
             api={api}
           />
         )}

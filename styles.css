@@ -62,25 +62,26 @@ button {
     flex-direction: column;
 }
 
-.metric-sort {
+.view-options {
     margin: 5px 0;
 }
 
 .checkbox {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    margin-right: 10px;
+    gap: 4px;
+    margin-right: 8px;
+    font-size: 80%;
     cursor: pointer;
 }
 
 .checkbox input {
     appearance: none;
     box-sizing: border-box;
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
     margin: 0;
-    padding: 2px;
+    padding: 1px;
     border: solid seagreen 1px;
     border-radius: 2px;
     background-clip: content-box;

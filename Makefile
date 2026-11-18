@@ -19,7 +19,7 @@ RESET  := \033[0m
 # $(call prefix,<color>,<label>) tags each line of a piped stream with a colored label
 prefix = 2>&1 | while IFS= read -r line; do printf '$(1)[$(2)]$(RESET) %s\n' "$$line"; done
 
-.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps build server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -36,7 +36,11 @@ deps:
 	$(NIX) pnpm install
 	cd server-next && $(NIX) mix deps.get
 
-server: docker-stop
+# the bundle the server serves from STATIC_DIR; no prefix pipe, so a failed build stops the target
+build:
+	$(NIX) pnpm run build
+
+server: docker-stop build
 	mkdir -p $(STATE_DIR)
 	cd server-next && \
 		PORT=$(PORT) \
@@ -63,7 +67,7 @@ attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
 
 frontend:
-	{ $(NIX) pnpm run build && $(NIX) pnpm run hot; } $(call prefix,$(PURPLE),frontend)
+	$(NIX) pnpm run hot $(call prefix,$(PURPLE),frontend)
 
 test:
 	cd server-next && $(NIX) mix test

@@ -29,6 +29,7 @@ interface Props {
   setCurrentOffset: (x: number) => void
   radioFilter: string
   sortMetric: string | undefined
+  favsGrid: boolean
 }
 
 const RadioList = ({
@@ -42,6 +43,7 @@ const RadioList = ({
   api,
   radioFilter,
   sortMetric,
+  favsGrid,
 }: Props) => {
   const [selector, setSelector] = useState(0)
 
@@ -63,7 +65,7 @@ const RadioList = ({
     setLockStations,
   })
 
-  const isGrid = useMediaQuery(GRID_MEDIA_QUERY) && isFavsList
+  const isGrid = useMediaQuery(GRID_MEDIA_QUERY) && isFavsList && favsGrid
   const favLayout = useFavLayout(channels, isGrid)
 
   return (
