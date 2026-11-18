@@ -177,6 +177,40 @@ defmodule BBRF.API.RouterTest do
     assert call(:get, "/bytag/jazz?sort=loudness").status == 400
   end
 
+  test "GET /by* with ?sort=hi_qlty or lo_qlty ranks the catalogue by quality, unknown last" do
+    Metatable.reset_db!()
+
+    Stations.upsert([
+      Metatable.station(%{"name" => "Mid FM", "codec" => "MP3", "bitrate" => 128}),
+      Metatable.station(%{
+        "stationuuid" => "station-2",
+        "name" => "Hi FM",
+        "codec" => "MP3",
+        "bitrate" => 320
+      }),
+      Metatable.station(%{
+        "stationuuid" => "station-3",
+        "name" => "Unknown FM",
+        "codec" => "MP3",
+        "bitrate" => 0
+      }),
+      Metatable.station(%{
+        "stationuuid" => "station-4",
+        "name" => "Lo FM",
+        "codec" => "MP3",
+        "bitrate" => 32
+      })
+    ])
+
+    names = fn path -> path |> call_get() |> Enum.map(& &1["name"]) end
+
+    assert names.("/byname/fm?sort=hi_qlty") == ["Hi FM", "Mid FM", "Lo FM", "Unknown FM"]
+    assert names.("/byname/fm?sort=lo_qlty") == ["Lo FM", "Mid FM", "Hi FM", "Unknown FM"]
+
+    assert [%{"metrics" => %{"lo_qlty" => %{"value" => 32.0, "sample" => 32}}} | _] =
+             call_get("/byname/fm?sort=lo_qlty")
+  end
+
   test "GET /bytrack/:query with ?sort ranks the stations that played a match" do
     Metatable.reset_db!()
 

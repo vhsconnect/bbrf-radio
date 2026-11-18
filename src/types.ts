@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
 const MetricSchema = Schema.Struct({
-  // higher is better; null when the station lacks enough data to judge
+  // null when the station lacks enough data to judge
   value: Schema.NullOr(Schema.Number),
   sample: Schema.Number,
 })

@@ -28,7 +28,6 @@ interface Props {
   currentOffset: number
   setCurrentOffset: (x: number) => void
   radioFilter: string
-  // the metric the server ranks the list by, highest first
   sortMetric: string | undefined
 }
 

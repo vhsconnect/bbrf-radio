@@ -20,7 +20,16 @@ defmodule BBRF.Metrics do
   require Logger
   alias BBRF.{Env, History, IngestStat, Repo}
   alias BBRF.Ingester.Stations
-  alias BBRF.Metrics.{Balance, International, NoSsAds, Obscure500, Obscure1500, Obscure2500}
+
+  alias BBRF.Metrics.{
+    Balance,
+    International,
+    NoSsAds,
+    Obscure500,
+    Obscure1500,
+    Obscure2500,
+    Quality
+  }
 
   @chunk 500
 
@@ -31,7 +40,8 @@ defmodule BBRF.Metrics do
 
   def all, do: [International, Balance, NoSsAds, Obscure500, Obscure1500, Obscure2500]
 
-  def names, do: Enum.map(all(), & &1.name())
+  @doc "What a `/by*` route sorts on: the stored metrics, then `BBRF.Metrics.Quality`."
+  def names, do: Enum.map(all(), & &1.name()) ++ Quality.names()
 
   @doc """
   Compute `metrics` once at `now`. A metric that raises is recorded and
@@ -49,45 +59,63 @@ defmodule BBRF.Metrics do
 
   @doc """
   `stations` (radio-browser station maps) each with a `"metrics"` map of
-  its stored rows by metric name, as `%{"value" => value, "sample" => sample}`.
-  A station without rows gets an empty map.
+  its stored rows and, when in the catalogue, its `BBRF.Metrics.Quality`,
+  by name, as `%{"value" => value, "sample" => sample}`. A station with
+  neither gets an empty map.
   """
   def enrich([]), do: []
 
   def enrich(stations) when is_list(stations) do
-    by_station = for_stations(Enum.map(stations, & &1["stationuuid"]))
+    stationuuids = Enum.map(stations, & &1["stationuuid"])
+    stored = for_stations(stationuuids)
+    quality = Quality.for_stations(stationuuids)
 
     Enum.map(stations, fn station ->
-      Map.put(station, "metrics", Map.get(by_station, station["stationuuid"], %{}))
+      metrics =
+        Map.merge(
+          Map.get(stored, station["stationuuid"], %{}),
+          Map.get(quality, station["stationuuid"], %{})
+        )
+
+      Map.put(station, "metrics", metrics)
     end)
   end
 
   @doc """
   Catalogue stations matching `filter` (`BBRF.History.station_condition/1`),
-  highest `metric` value first, enriched like `enrich/1`. Stations without
-  a value come last; ties go by name. Stations the catalogue sync marked
-  removed are left out.
+  highest `metric` value first (`lo_qlty` lowest), enriched like
+  `enrich/1`. Stations without a value come last; ties go by name.
+  Stations the catalogue sync marked removed are left out.
   """
   @spec ranked({atom(), String.t()}, String.t(), pos_integer(), non_neg_integer()) :: [map()]
   def ranked(filter, metric, limit, offset) do
     {condition, params} = History.station_condition(filter)
+    {join, join_params, value, direction} = sort(metric)
 
     %{rows: rows} =
       Repo.query!(
         """
         SELECT #{Enum.map_join(Stations.api_columns(), ", ", &"s.#{&1}")}
           FROM stations s
-          LEFT JOIN station_metrics m ON m.stationuuid = s.stationuuid AND m.metric = ?
+          #{join}
          WHERE s.meta_state != 'removed' AND #{condition}
-         ORDER BY m.value IS NULL, m.value DESC, s.name COLLATE NOCASE, s.stationuuid
+         ORDER BY (#{value}) IS NULL, (#{value}) #{direction}, s.name COLLATE NOCASE, s.stationuuid
          LIMIT ? OFFSET ?
         """,
-        [metric | params] ++ [limit, offset]
+        join_params ++ params ++ [limit, offset]
       )
 
     rows
     |> Enum.map(&Stations.to_api/1)
     |> enrich()
+  end
+
+  defp sort(metric) do
+    if metric in Quality.names(),
+      do: {"", [], Quality.sql(), Quality.direction(metric)},
+      else:
+        {"LEFT JOIN station_metrics m ON m.stationuuid = s.stationuuid AND m.metric = ?",
+         [metric], "m.value", "DESC"}
   end
 
   defp for_stations(stationuuids) do
