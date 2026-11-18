@@ -5,7 +5,7 @@ bbrf can run on one machine (`BBRF_ROLE=all`, the default: nothing on this page 
 - **hub**: a small machine, reachable from outside. Serves the frontend, the API and the favorites, and keeps a window of track history (`RETENTION_DAYS`, e.g. 90 days, about 5-10 GB). Never ingests.
 - **ingest**: a bigger machine, internal, not necessarily always on. Runs the ingester and keeps the full history.
 
-Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
+Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station, the station metrics and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
 
 The link is mutual TLS with one private CA per role: only the ingest node's certificate is accepted by the hub, and the hub's own client side trusts nothing, so it cannot connect out. A shared cookie is the second check. Each node's TLS key and the cookie are kept in a [sops](https://github.com/getsops/sops) file encrypted to that node's [age](https://age-encryption.org) key and an admin key. See `BBRF.Sync` and `scripts/launch.fish` for the details.
 
@@ -89,7 +89,7 @@ On the ingest node:
 
 The ingest node keeps the database it already has (`BBRF_DB`, or `$STATE_DIR/db.sqlite` with `make`). `SYNC_INTERVAL_HOURS` (24) sets how often it syncs. History grows by 55-110 MB a day, so 90 days on the hub is 5-10 GB.
 
-With `make docker`, the container mounts `secrets/` read-only and reads the node's age key as `age.key` in `AGE_KEY_DIR` (default `~/.config/bbrf`, where `make age-key` puts it). The decrypted TLS key and cookie live in a tmpfs inside the container. `HOST_UID` and `HOST_GID` (1000 and 100) set the user it runs as, which has to own the database and be able to read the age key.
+With `make docker`, the container reads the whole `.env`, as `make server` and `make metrics` do, except for the paths, which point inside it: `BBRF_DB`, `STATIC_DIR`, `FAVORITES_IMPORT_FILE`, `SECRETS_DIR`, `AGE_KEY_FILE` and `RUNTIME_DIR`. It mounts `secrets/` read-only and reads the node's age key as `age.key` in `AGE_KEY_DIR` (default `~/.config/bbrf`, where `make age-key` puts it). The decrypted TLS key and cookie live in a tmpfs inside the container. `HOST_UID` and `HOST_GID` (1000 and 100) set the user it runs as, which has to own the database and be able to read the age key.
 
 ## 5. Hub firewall
 
@@ -134,6 +134,10 @@ Check that it worked:
 - the hub logs `sync: started by bbrf_ingest@INGEST`
 - the ingest node logs `job=sync ... sync rows=<observations> inserted=<observations> updated=<stations> ...`
 - `/tracks` on the hub returns plays
+
+## Station metrics
+
+Metrics are not computed on a schedule: run them by hand on the ingest node (or the `all` node) with `make metrics`, or through the container; see [docs/cli.md](../docs/cli.md).
 
 ## Upgrades
 

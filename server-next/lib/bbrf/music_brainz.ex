@@ -7,10 +7,16 @@ defmodule BBRF.MusicBrainz do
   and are left out.
 
   MusicBrainz asks for a User-Agent with contact info and serves one
-  request per second per IP, answering 503 past that. Every request
-  here waits for its own slot, MUSICBRAINZ_INTERVAL_MS (1200) after the
-  previous one, across all processes; requests are not retried.
-  MUSICBRAINZ_BASE_URL points at a mirror instead.
+  request per second per IP, answering 503 past that or when it is
+  overloaded. Every request here waits for its own slot,
+  MUSICBRAINZ_INTERVAL_MS (1200) after the previous one, across all
+  processes. A 503 is retried up to 3 times, 2, 4 and 8 intervals later,
+  and holds every other request back for as long, the last one for 8
+  intervals; nothing else is retried. MUSICBRAINZ_BASE_URL points at a
+  mirror instead.
+
+  Every request, a retry included, emits `[:bbrf, :musicbrainz, :request]`
+  with how long it took and how long it waited for its slot.
 
   Entities are atoms, `:release_group` for `release-group`. Options
   become query params: `inc:` and the release `type:`/`status:`
@@ -26,6 +32,8 @@ defmodule BBRF.MusicBrainz do
   # an initial last-request time old enough that the first request goes
   # out right away
   @long_ago -(2 ** 62)
+  # intervals to wait before each retry of a 503
+  @busy_backoff [2, 4, 8]
 
   @entities ~w(area artist collection event genre instrument label place recording release release_group series url work)a
 
@@ -106,17 +114,30 @@ defmodule BBRF.MusicBrainz do
   @doc "`text` as a Lucene phrase: in double quotes, its quotes and backslashes escaped."
   def phrase(text), do: ~s("#{String.replace(text, ["\\", "\""], &("\\" <> &1))}")
 
-  @doc "GET a ws/2 path as json; nil on 404, raises on any other failure."
+  @doc """
+  GET a ws/2 path as json; nil on 404, raises on any other failure once
+  the retries of a 503 are spent.
+  """
   def get_json(path, opts \\ []) do
-    url = "#{base_url()}/#{path}"
-    wait_for_slot()
+    get(path, [{:fmt, "json"} | Enum.map(opts, &query_param/1)], @busy_backoff)
+  end
 
-    case Req.get(url,
-           params: [{:fmt, "json"} | Enum.map(opts, &query_param/1)],
-           headers: [{"user-agent", @user_agent}, {"accept", "application/json"}],
-           receive_timeout: 10_000,
-           retry: false
-         ) do
+  defp get(path, params, backoff) do
+    url = "#{base_url()}/#{path}"
+    wait = wait_for_slot()
+    start = System.monotonic_time()
+
+    response =
+      Req.get(url,
+        params: params,
+        headers: [{"user-agent", @user_agent}, {"accept", "application/json"}],
+        receive_timeout: 10_000,
+        retry: false
+      )
+
+    emit_request(path, params, response, System.monotonic_time() - start, wait)
+
+    case response do
       {:ok, %Req.Response{status: 200, body: body}} when is_map(body) ->
         body
 
@@ -129,12 +150,37 @@ defmodule BBRF.MusicBrainz do
       {:ok, %Req.Response{status: 404}} ->
         nil
 
+      {:ok, %Req.Response{status: 503}} ->
+        case backoff do
+          [intervals | rest] ->
+            defer_slots(intervals * interval_ms())
+            get(path, params, rest)
+
+          [] ->
+            defer_slots(List.last(@busy_backoff) * interval_ms())
+            raise "#{url} returned HTTP 503"
+        end
+
       {:ok, %Req.Response{status: status}} ->
         raise "#{url} returned HTTP #{status}"
 
       {:error, exception} ->
         raise "#{url} request failed: #{Exception.message(exception)}"
     end
+  end
+
+  defp emit_request(path, params, response, duration, wait) do
+    result =
+      case response do
+        {:ok, %Req.Response{status: status}} -> {:ok, status}
+        {:error, exception} -> {:error, Exception.message(exception)}
+      end
+
+    :telemetry.execute([:bbrf, :musicbrainz, :request], %{duration: duration, wait: wait}, %{
+      path: path,
+      params: params,
+      result: result
+    })
   end
 
   # inc values are space separated, which the query string encodes as
@@ -155,8 +201,10 @@ defmodule BBRF.MusicBrainz do
   defp encode(value), do: URI.encode(value, &URI.char_unreserved?/1)
 
   defp wait_for_slot do
+    start = System.monotonic_time()
     slot = claim_slot(slots(), interval_ms())
     Process.sleep(max(slot - System.monotonic_time(:millisecond), 0))
+    System.monotonic_time() - start
   end
 
   # compare-and-swap on the time of the last claimed slot, so concurrent
@@ -168,6 +216,20 @@ defmodule BBRF.MusicBrainz do
     case :atomics.compare_exchange(slots, 1, last, slot) do
       :ok -> slot
       _claimed_meanwhile -> claim_slot(slots, interval)
+    end
+  end
+
+  # moves the last claimed slot so the next one, whoever claims it, is
+  # `ms` from now at the earliest
+  defp defer_slots(ms) do
+    slots = slots()
+    last = :atomics.get(slots, 1)
+    until = System.monotonic_time(:millisecond) + ms - interval_ms()
+
+    cond do
+      until <= last -> :ok
+      :atomics.compare_exchange(slots, 1, last, until) == :ok -> :ok
+      true -> defer_slots(ms)
     end
   end
 

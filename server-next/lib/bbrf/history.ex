@@ -93,23 +93,46 @@ defmodule BBRF.History do
     end
   end
 
-  defp track_condition({:countrycode, code}),
-    do: {"upper(s.countrycode) = upper(?)", [String.trim(code)]}
-
-  # tags is a comma-separated list, matched as whole tags. sqlite's
-  # lower() only folds ASCII, so both sides go through it
-  defp track_condition({:tag, tag}),
-    do:
-      {"instr(',' || lower(replace(s.tags, ', ', ',')) || ',', lower(?)) > 0",
-       [",#{String.trim(tag)},"]}
-
-  defp track_condition({:station, name}),
-    do: {"instr(lower(s.name), lower(?)) > 0", [String.trim(name)]}
-
   defp track_condition({:q, query}) do
     case match_expression(query) do
       nil -> {"0", []}
       match -> {"o.id IN (SELECT rowid FROM track_search WHERE track_search MATCH ?)", [match]}
+    end
+  end
+
+  defp track_condition(filter), do: station_condition(filter)
+
+  @doc """
+  A SQL condition over `stations s` and its params: stations in a
+  `:countrycode`, carrying a `:tag`, whose name contains `:station`, or
+  that played a `:track` matching the way `search/3` does.
+  """
+  @spec station_condition({atom(), String.t()}) :: {String.t(), list()}
+  def station_condition({:countrycode, code}),
+    do: {"upper(s.countrycode) = upper(?)", [String.trim(code)]}
+
+  # tags is a comma-separated list, matched as whole tags. sqlite's
+  # lower() only folds ASCII, so both sides go through it
+  def station_condition({:tag, tag}),
+    do:
+      {"instr(',' || lower(replace(s.tags, ', ', ',')) || ',', lower(?)) > 0",
+       [",#{String.trim(tag)},"]}
+
+  def station_condition({:station, name}),
+    do: {"instr(lower(s.name), lower(?)) > 0", [String.trim(name)]}
+
+  def station_condition({:track, query}) do
+    case match_expression(query) do
+      nil ->
+        {"0", []}
+
+      match ->
+        {"""
+         s.stationuuid IN (SELECT o.stationuuid
+                             FROM track_search
+                             JOIN track_observations o ON o.id = track_search.rowid
+                            WHERE track_search MATCH ?)
+         """, [match]}
     end
   end
 
@@ -143,13 +166,7 @@ defmodule BBRF.History do
             [match, limit, offset]
           )
 
-        Enum.map(rows, fn row ->
-          Stations.api_columns()
-          |> Enum.zip(row)
-          |> Map.new()
-          # stored as 0/1, radio-browser serves it as a boolean
-          |> Map.update!("has_extended_info", &(&1 == 1))
-        end)
+        Enum.map(rows, &Stations.to_api/1)
     end
   end
 

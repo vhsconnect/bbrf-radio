@@ -35,18 +35,19 @@ services:
     tmpfs:
       # the decrypted TLS key and cookie, never written to disk
       - /run/bbrf:uid=${HOST_UID:-1000},gid=${HOST_GID:-100},mode=0700
+    # the node reads the same .env as make server and make metrics
+    env_file:
+      - path: .env
+        required: false
+    # paths inside the container, over whatever host paths .env holds
     environment:
       - PORT=${PORT:-4882}
+      - BBRF_DB=/data/db.sqlite
+      - STATIC_DIR=/app/static
       - FAVORITES_IMPORT_FILE=/import/bbrf-radio/storage.json
-      # each component on (1) or off (0)
-      - BBRF_API=${BBRF_API:-1}
-      - BBRF_INGESTER=${BBRF_INGESTER:-1}
-      # hub, ingest or all; see server-next/DEPLOYMENT.md
-      - BBRF_ROLE=${BBRF_ROLE:-all}
-      - SYNC_HUB_NODE=${SYNC_HUB_NODE:-}
-      - SYNC_INGEST_NODE=${SYNC_INGEST_NODE:-}
-      - SYNC_INTERVAL_HOURS=${SYNC_INTERVAL_HOURS:-}
-      - RETENTION_DAYS=${RETENTION_DAYS:-}
+      - SECRETS_DIR=/secrets
+      - AGE_KEY_FILE=/age/age.key
+      - RUNTIME_DIR=/run/bbrf
 
 volumes:
   bbrf-data:

@@ -1,13 +1,16 @@
 defmodule BBRF.Ingester.Artists do
   @moduledoc """
   Resolves artist credits (`BBRF.ArtistCredit`) to MusicBrainz artists,
-  most played first, in the `:musicbrainz` lane of
-  `BBRF.Ingester.WorkQueue`.
+  credits never tried before any retry, each most played first, in the
+  `:musicbrainz` lane of `BBRF.Ingester.WorkQueue`.
 
-  A recording search on a credit's most played title and the credit
-  itself returns MusicBrainz's own split of the credit into artists. The
-  best match is taken when it scores at least 90 and every artist in
-  it is named in the credit; otherwise the credit is unresolved and tried
+  A recording search on a credit's most played title and the words of
+  the credit, both cleaned up by `BBRF.Ingester.Artists.Cleanup`,
+  returns MusicBrainz's own split of the credit into artists. The best
+  match is taken when it scores at least 90 and every artist in it is
+  named in the credit as whole words, once both are folded, and none is
+  a special purpose artist ([unknown], Various Artists, ...); otherwise
+  the credit is unresolved and tried
   again after 7 days, then every 30, since an ad or a placeholder never
   resolves. Each artist not in `artists` yet has its profile looked up
   and stored flattened over `artists` and the `artist_*` tables.
@@ -15,13 +18,18 @@ defmodule BBRF.Ingester.Artists do
   Every ARTIST_RESOLVE_MINUTES (10), up to ARTIST_RESOLVE_BATCH (300)
   credits are tried; 0 turns the resolver off. A credit whose requests
   fail is left as it was and comes up again on the next round.
+
+  Every credit tried emits `[:bbrf, :artists, :resolve]` with how long it
+  took and what came of it: `resolve/1`'s result, `:failed` or `:timeout`.
   """
 
   require Logger
-  alias BBRF.{ArtistCredit, Env, IngestStat, MusicBrainz, Repo}
+  alias BBRF.{Env, IngestStat, MusicBrainz, Repo}
+  alias BBRF.Ingester.Artists.Cleanup
   alias BBRF.Ingester.WorkQueue
 
   @min_score 90
+  @various_artists "89ad4ac3-39f7-470e-963a-56509c546377"
   @unresolved_days [7, 30]
   @profile_inc ~w(aliases tags genres url-rels)
   # a search plus a profile lookup per artist, each paced a second apart
@@ -41,7 +49,7 @@ defmodule BBRF.Ingester.Artists do
 
       counts =
         WorkQueue
-        |> WorkQueue.async_stream(:musicbrainz, credits, &{&1, resolve(&1)},
+        |> WorkQueue.async_stream(:musicbrainz, credits, &timed_resolve/1,
           timeout: @job_timeout_ms
         )
         |> Enum.reduce(%{}, fn element, counts ->
@@ -69,9 +77,10 @@ defmodule BBRF.Ingester.Artists do
   end
 
   @doc """
-  The credits to try at `now`, most played first, at most `limit`: those
-  never tried and the unresolved ones due again, each with the spelling
-  and title it was played with most.
+  The credits to try at `now`, at most `limit`: those never tried, then
+  the unresolved ones due again, each most played first and with the
+  spelling and title it was played with most. Retries wait for as long
+  as untried credits keep coming.
   """
   def due(_now, limit) when limit <= 0, do: []
 
@@ -86,7 +95,7 @@ defmodule BBRF.Ingester.Artists do
            AND o.title IS NOT NULL
            AND (c.id IS NULL OR (c.status = 'unresolved' AND c.next_check_at <= ?))
          GROUP BY o.artist_credit_id
-         ORDER BY COUNT(*) DESC, o.artist_credit_id
+         ORDER BY c.id IS NOT NULL, COUNT(*) DESC, o.artist_credit_id
          LIMIT ?
         """,
         [DateTime.to_iso8601(now), limit]
@@ -110,20 +119,55 @@ defmodule BBRF.Ingester.Artists do
     end)
   end
 
+  defp timed_resolve(credit) do
+    start = System.monotonic_time()
+
+    try do
+      result = resolve(credit)
+      emit_resolve(credit, result, System.monotonic_time() - start)
+      {credit, result}
+    rescue
+      exception ->
+        emit_resolve(credit, :failed, System.monotonic_time() - start)
+        reraise exception, __STACKTRACE__
+    end
+  end
+
+  defp emit_resolve(credit, result, duration) do
+    :telemetry.execute([:bbrf, :artists, :resolve], %{duration: duration}, %{
+      credit: credit,
+      result: result
+    })
+  end
+
   @doc """
   Ask MusicBrainz who `credit` is: `{:resolved, artists, profiles}` with
   the credit's artists in order and the flattened profiles of those not
   stored yet, or `:unresolved`. Raises when a request fails.
   """
   def resolve(%{name: name, title: title}) do
-    query = "recording:#{MusicBrainz.phrase(title)} AND artist:#{MusicBrainz.phrase(name)}"
-
-    with artists when artists != nil <-
-           match(name, MusicBrainz.search(:recording, query, limit: 5)),
+    with query when query != nil <- query(name, title),
+         artists when artists != nil <-
+           match(name, MusicBrainz.search(:recording, query, limit: 10)),
          profiles when profiles != nil <- new_profiles(artists) do
       {:resolved, artists, profiles}
     else
       nil -> :unresolved
+    end
+  end
+
+  @doc """
+  The recording search for a credit `name` played with `title`: the
+  cleaned title as a phrase and any of the credit's words as the artist.
+  nil when the credit has no words to search with.
+  """
+  def query(name, title) do
+    case Cleanup.artist_terms(name) do
+      [] ->
+        nil
+
+      terms ->
+        "recording:#{MusicBrainz.phrase(Cleanup.title(title))} AND artist:(#{Enum.join(terms, " ")})"
     end
   end
 
@@ -146,28 +190,58 @@ defmodule BBRF.Ingester.Artists do
   end
 
   @doc """
-  The artists of the first recording in a search `response` that scores
-  at least #{@min_score} and names no artist the credit `name` leaves out,
-  as `artist_credit_artists` rows without the credit id; nil for none.
+  The artists of a recording in a search `response` that scores at least
+  #{@min_score} and names no artist the credit `name` leaves out, as
+  `artist_credit_artists` rows without the credit id; nil for none.
+
+  Of several, the one whose artists account for the most words of the
+  credit wins ("The Refreshments" over "Refreshments", all three of
+  "Kygo, Avicii & Sandro Cavazza" over two of them), then the artists
+  the most of those recordings credit, then the best scored.
   """
   def match(name, response) do
-    key = ArtistCredit.normalize(name)
+    key = " #{Cleanup.fold(name)} "
 
-    Enum.find_value(response["recordings"] || [], fn recording ->
-      credit = recording["artist-credit"] || []
+    credits =
+      for recording <- response["recordings"] || [],
+          credit = recording["artist-credit"] || [],
+          score(recording) >= @min_score and credit != [] and Enum.all?(credit, &named?(key, &1)),
+          do: credit
 
-      if score(recording) >= @min_score and credit != [] and Enum.all?(credit, &named?(key, &1)) do
-        credit
-        |> Enum.with_index()
-        |> Enum.map(fn {entry, position} ->
-          %{
-            position: position,
-            artist_mbid: entry["artist"]["id"],
-            credited_as: entry["name"],
-            join_phrase: entry["joinphrase"]
-          }
-        end)
-      end
+    case credits do
+      [] -> nil
+      credits -> credits |> best(Cleanup.words(name)) |> credit_rows()
+    end
+  end
+
+  defp best(credits, words) do
+    words = Enum.uniq(words)
+    counts = Enum.frequencies_by(credits, &mbids/1)
+    Enum.max_by(credits, &{coverage(&1, words), counts[mbids(&1)]})
+  end
+
+  defp mbids(credit), do: Enum.map(credit, & &1["artist"]["id"])
+
+  defp coverage(credit, words) do
+    named =
+      Enum.flat_map(
+        credit,
+        &(Cleanup.words(&1["name"] || "") ++ Cleanup.words(&1["artist"]["name"] || ""))
+      )
+
+    Enum.count(words, &(&1 in named))
+  end
+
+  defp credit_rows(credit) do
+    credit
+    |> Enum.with_index()
+    |> Enum.map(fn {entry, position} ->
+      %{
+        position: position,
+        artist_mbid: entry["artist"]["id"],
+        credited_as: entry["name"],
+        join_phrase: entry["joinphrase"]
+      }
     end)
   end
 
@@ -175,15 +249,21 @@ defmodule BBRF.Ingester.Artists do
   defp score(%{"score" => score}) when is_binary(score), do: String.to_integer(score)
   defp score(_recording), do: 0
 
-  defp named?(key, entry),
-    do: contains?(key, entry["name"]) or contains?(key, entry["artist"]["name"])
+  defp named?(key, entry) do
+    not special?(entry["artist"]) and
+      (contains?(key, entry["name"]) or contains?(key, entry["artist"]["name"]))
+  end
+
+  defp special?(%{"id" => @various_artists}), do: true
+  defp special?(%{"name" => "[" <> _rest}), do: true
+  defp special?(_artist), do: false
 
   defp contains?(_key, nil), do: false
 
   defp contains?(key, name) do
-    case ArtistCredit.normalize(name) do
+    case Cleanup.fold(name) do
       "" -> false
-      name -> String.contains?(key, name)
+      name -> String.contains?(key, " #{name} ")
     end
   end
 
@@ -279,6 +359,15 @@ defmodule BBRF.Ingester.Artists do
   end
 
   def store({:exit, {credit, reason}}, _now) do
+    # a job killed at the timeout never reports its own duration
+    if reason == :timeout do
+      emit_resolve(
+        credit,
+        :timeout,
+        System.convert_time_unit(@job_timeout_ms, :millisecond, :native)
+      )
+    end
+
     Logger.debug("artist credit #{inspect(credit.name)} failed: #{inspect(reason)}")
     :failed
   end

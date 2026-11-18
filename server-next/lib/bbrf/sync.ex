@@ -1,9 +1,9 @@
 defmodule BBRF.Sync do
   @moduledoc """
-  Copies the ingest node's stations, artist catalogue and track history
-  into the hub's database over Erlang distribution. Both databases have the same
-  schema; the hub keeps its own window of history (its RETENTION_DAYS)
-  and prunes it like the ingester does.
+  Copies the ingest node's stations, artist catalogue, station metrics
+  and track history into the hub's database over Erlang distribution.
+  Both databases have the same schema; the hub keeps its own window of
+  history (its RETENTION_DAYS) and prunes it like the ingester does.
 
   The ingest node pushes and the hub's `BBRF.Sync.Receiver` only
   answers. A sync, on the ingest node:
@@ -16,8 +16,10 @@ defmodule BBRF.Sync do
     3. upserts every station
     4. upserts the whole artist catalogue, parents before the rows
        referencing them
-    5. sends the observations newer than both, by id
-    6. disconnects
+    5. upserts every station metric, then names the runs they come from,
+       so the hub drops its rows from any other run
+    6. sends the observations newer than both, by id
+    7. disconnects
 
   Rows go in batches, one call each, so the hub sets the pace and writes
   in short transactions. A sync that breaks off resumes from the hub's
@@ -119,8 +121,10 @@ defmodule BBRF.Sync do
            {:ok, %{cursor: cursor, since: since}} <- call(hub, {:hello, schema_version()}),
            {:ok, stations} <- push_table(hub, "stations", 0),
            {:ok, artists} <- push_catalogue(hub),
+           {:ok, metrics} <- push_metrics(hub),
            {:ok, observations} <- push_table(hub, "track_observations", first_id(cursor, since)) do
-        {:ok, %{stations: stations, artists: artists, observations: observations}}
+        {:ok,
+         %{stations: stations, artists: artists, metrics: metrics, observations: observations}}
       end
 
     disconnect(hub)
@@ -187,6 +191,19 @@ defmodule BBRF.Sync do
         error -> {:halt, error}
       end
     end)
+  end
+
+  # a run that failed part way leaves rows from two runs, hence every
+  # run and not only each metric's latest
+  defp push_metrics(hub) do
+    with {:ok, sent} <- push_table(hub, "station_metrics", 0) do
+      %{rows: runs} = Repo.query!("SELECT DISTINCT metric, computed_at FROM station_metrics")
+
+      case call(hub, {:metric_runs, Enum.map(runs, &List.to_tuple/1)}) do
+        :ok -> {:ok, sent}
+        error -> error
+      end
+    end
   end
 
   # rows after `after_rowid` in rowid order (an observation's rowid is its

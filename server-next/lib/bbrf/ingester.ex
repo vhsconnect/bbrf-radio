@@ -13,9 +13,10 @@ defmodule BBRF.Ingester do
     * track waves (every TRACK_CYCLE_MINUTES, default 1): check the
       stations the TRACK_STRATEGY selects, see `BBRF.Ingester.Track` and
       `BBRF.Ingester.Track.Strategy`
-    * artists (every ARTIST_RESOLVE_MINUTES, default 10): resolve the
-      most played artist credits to MusicBrainz artists, see
+    * artists (every ARTIST_RESOLVE_MINUTES, default 10): resolve artist
+      credits never tried, then retries, to MusicBrainz artists, see
       `BBRF.Ingester.Artists`
+    * empty (every EMPTY_MINUTES, default 60): a no-op, see `BBRF.Ingester.Empty`
     * retention (every PRUNE_HOURS, default 24): delete track observations
       older than RETENTION_DAYS (default 365) and return the space to the OS
 
@@ -26,7 +27,18 @@ defmodule BBRF.Ingester do
   """
 
   alias BBRF.Env
-  alias BBRF.Ingester.{Artists, Catalogue, RecentPolls, Report, Scheduler, Track, WorkQueue}
+
+  alias BBRF.Ingester.{
+    Artists,
+    Catalogue,
+    Empty,
+    RecentPolls,
+    Report,
+    Scheduler,
+    Track,
+    WorkQueue
+  }
+
   alias BBRF.Ingester.Track.Strategy
 
   def prune_hours, do: Env.int("PRUNE_HOURS", 24)
@@ -69,6 +81,11 @@ defmodule BBRF.Ingester do
        label: "artists",
        interval_ms: Artists.interval_minutes() * 60_000,
        job: {Artists, :resolve_due, []}},
+      {Scheduler,
+       name: BBRF.Ingester.Scheduler.Empty,
+       label: "empty",
+       interval_ms: Empty.interval_minutes() * 60_000,
+       job: {Empty, :run, []}},
       prune_child()
     ]
   end
@@ -90,6 +107,7 @@ defmodule BBRF.Ingester do
         - track waves every #{Track.wave_interval_minutes()} min using #{Strategy.describe(strategy)}
           (deadline #{Track.wave_deadline_seconds()}s, max #{Track.wave_max_stations()} stations)
         - artist resolve every #{Artists.interval_minutes()} min, up to #{Artists.batch_size()} credits
+        - empty every #{Empty.interval_minutes()} min
         - work queue: #{WorkQueue.slots()} slots, lanes #{lanes() |> Keyword.keys() |> Enum.join(" > ")}
         - prune every #{prune_hours()}h (retention #{Track.retention_days()} days)
         - report every #{Env.int("REPORT_SECONDS", 10)} s\

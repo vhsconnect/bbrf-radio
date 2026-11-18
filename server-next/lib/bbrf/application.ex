@@ -16,7 +16,7 @@ defmodule BBRF.Application do
   use Application
   require Logger
   alias BBRF.{API, Env, Ingester, Role, Setup, Sync}
-  alias BBRF.Ingester.Log
+  alias BBRF.Ingester.{Log, NetworkLog}
   alias BBRF.Ingester.Track.Strategy
 
   @impl true
@@ -29,6 +29,7 @@ defmodule BBRF.Application do
     strategy = if ingester?, do: Strategy.from_env()
 
     if ingester? or role != :all, do: Log.attach()
+    if ingester? and NetworkLog.enabled?(), do: NetworkLog.attach()
 
     :ok = BBRF.Journal.ensure!()
     :ok = Sync.use_cookie()

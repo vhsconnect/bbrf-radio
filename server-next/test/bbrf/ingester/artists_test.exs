@@ -107,6 +107,79 @@ defmodule BBRF.Ingester.ArtistsTest do
 
       assert Artists.match("Unknown", response) == nil
     end
+
+    test "names an artist across quotes, accents, case and a leading the" do
+      for {sent, musicbrainz} <- [
+            {"GUNS N' ROSES", "Guns N’ Roses"},
+            {"Celine Dion", "Céline Dion"},
+            {"Beatles", "The Beatles"},
+            {"Tyler， The Creator, Madison McFerrin", "Tyler, The Creator"}
+          ] do
+        response = Metatable.mb_recordings([{100, [{musicbrainz, "mbid-1", ""}]}])
+        assert [%{artist_mbid: "mbid-1"}] = Artists.match(sent, response), sent
+      end
+    end
+
+    test "names an artist only as whole words of the credit" do
+      response = Metatable.mb_recordings([{100, [{"Air", "mbid-air", ""}]}])
+
+      assert Artists.match("Fairground Attraction", response) == nil
+      assert [%{artist_mbid: "mbid-air"}] = Artists.match("Air & Beck", response)
+    end
+
+    test "rejects a different artist with a similar name" do
+      response = Metatable.mb_recordings([{100, [{"Gary Chester", "mbid-chester", ""}]}])
+
+      assert Artists.match("Gary Vine", response) == nil
+    end
+
+    test "prefers the recording crediting more of the credit's artists" do
+      response =
+        Metatable.mb_recordings([
+          {100, [{"Avicii", "mbid-avicii", " feat. "}, {"Sandro Cavazza", "mbid-sandro", ""}]},
+          {97,
+           [
+             {"Kygo", "mbid-kygo", ", "},
+             {"Avicii", "mbid-avicii", " & "},
+             {"Sandro Cavazza", "mbid-sandro", ""}
+           ]}
+        ])
+
+      assert Artists.match("Kygo, Avicii & Sandro Cavazza", response)
+             |> Enum.map(& &1.artist_mbid) == ~w(mbid-kygo mbid-avicii mbid-sandro)
+    end
+
+    test "prefers the name with its leading the, then the artist most recordings credit" do
+      response =
+        Metatable.mb_recordings([
+          {100, [{"Refreshments", "mbid-swedish", ""}]},
+          {92, [{"The Refreshments", "mbid-other", ""}]},
+          {92, [{"The Refreshments", "mbid-arizona", ""}]},
+          {92, [{"The Refreshments", "mbid-arizona", ""}]}
+        ])
+
+      assert [%{artist_mbid: "mbid-arizona"}] = Artists.match("The Refreshments", response)
+    end
+
+    test "rejects the Various Artists credit" do
+      response =
+        Metatable.mb_recordings([
+          {100, [{"Various Artists", "89ad4ac3-39f7-470e-963a-56509c546377", ""}]}
+        ])
+
+      assert Artists.match("Various artists", response) == nil
+    end
+  end
+
+  describe "query/2" do
+    test "searches the cleaned title as a phrase and any word of the credit" do
+      assert Artists.query("Rauw Alejandro, Bizarrap", "BABY HELLO (Official Video)") ==
+               ~S{recording:"BABY HELLO" AND artist:(rauw alejandro bizarrap)}
+    end
+
+    test "is nil for a credit with no words" do
+      assert Artists.query(".", "Halo") == nil
+    end
   end
 
   describe "due/2" do
@@ -134,6 +207,18 @@ defmodule BBRF.Ingester.ArtistsTest do
 
       assert [%{name: "gummihuset.se", attempts: 1}] =
                Artists.due(DateTime.add(Metatable.now(), 7, :day), 10)
+    end
+
+    test "takes credits never tried before retries, even ones played more" do
+      play("gummihuset.se", "Reklam", 10)
+      [ad] = Artists.due(Metatable.now(), 10)
+      Artists.store({:ok, {ad, :unresolved}}, Metatable.now())
+      play("Queen", "Bohemian Rhapsody")
+
+      assert Enum.map(Artists.due(DateTime.add(Metatable.now(), 7, :day), 10), & &1.name) == [
+               "Queen",
+               "gummihuset.se"
+             ]
     end
 
     test "a batch of 0 tries nothing" do
@@ -201,6 +286,32 @@ defmodule BBRF.Ingester.ArtistsTest do
                )
 
       assert next_check_at > DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), 6, :day))
+    end
+
+    test "reports how each credit came out and how long it took" do
+      test_pid = self()
+      handler = "resolve-test-#{inspect(test_pid)}"
+
+      :telemetry.attach(
+        handler,
+        [:bbrf, :artists, :resolve],
+        fn _event, %{duration: duration}, meta, pid ->
+          send(pid, {:resolve, meta.credit.name, meta.result, duration})
+        end,
+        test_pid
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+      play("Beyoncé", "Halo", 2)
+      play("gummihuset.se", "Reklam")
+
+      Artists.resolve_due()
+
+      assert_received {:resolve, "Beyoncé", {:resolved, [%{artist_mbid: "mbid-beyonce"}], [_]},
+                       duration}
+
+      assert_received {:resolve, "gummihuset.se", :unresolved, _duration}
+      assert duration > 0
     end
 
     test "does not look up a profile it already has" do

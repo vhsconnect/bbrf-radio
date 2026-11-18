@@ -12,7 +12,14 @@ FAVORITES_IMPORT_FILE ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf-radio/sto
 SECRETS_DIR ?= $(CURDIR)/secrets
 AGE_KEY_DIR ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/bbrf
 
-.PHONY: dev dev-all dev-api dev-ingester deps server docker docker-stop attach frontend test status status-watch age-key secrets secrets-renew secrets-check
+CYAN   := \033[36m
+PURPLE := \033[35m
+RESET  := \033[0m
+
+# $(call prefix,<color>,<label>) tags each line of a piped stream with a colored label
+prefix = 2>&1 | while IFS= read -r line; do printf '$(1)[$(2)]$(RESET) %s\n' "$$line"; done
+
+.PHONY: dev dev-all dev-api dev-ingester deps build server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-check
 
 dev: dev-all
 
@@ -29,7 +36,11 @@ deps:
 	$(NIX) pnpm install
 	cd server-next && $(NIX) mix deps.get
 
-server: docker-stop
+# the bundle the server serves from STATIC_DIR; no prefix pipe, so a failed build stops the target
+build:
+	$(NIX) pnpm run build
+
+server: docker-stop build
 	mkdir -p $(STATE_DIR)
 	cd server-next && \
 		PORT=$(PORT) \
@@ -38,7 +49,8 @@ server: docker-stop
 		FAVORITES_IMPORT_FILE=$(FAVORITES_IMPORT_FILE) \
 		BBRF_API=$(BBRF_API) \
 		BBRF_INGESTER=$(BBRF_INGESTER) \
-		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt
+		$(NIX) ../scripts/launch.fish elixir -S mix run --no-halt \
+		$(call prefix,$(CYAN),server)
 
 # server, as a release in Docker; .env picks the role here too. The mounted directories are
 # created first so Docker does not create them as root
@@ -55,11 +67,19 @@ attach:
 	$(NIX) iex --sname probe --remsh $(NODE)@$(shell hostname -s)
 
 frontend:
-	$(NIX) pnpm run build && \
-	$(NIX) pnpm run hot
+	$(NIX) pnpm run hot $(call prefix,$(PURPLE),frontend)
 
 test:
 	cd server-next && $(NIX) mix test
+
+# station metrics, computed once against $(DB); fine next to a running server
+metrics:
+	cd server-next && BBRF_DB=$(DB) $(NIX) mix run --no-start -e "BBRF.Metrics.CLI.main()"
+
+# favorites from $(DB) to stdout, in the shape GET /favorites returns; '@' and the compile
+# to stderr keep everything but the JSON off stdout
+favorites-export:
+	@cd server-next && BBRF_DB=$(DB) $(NIX) sh -c "mix compile >&2 && mix run --no-compile --no-start -e 'BBRF.Favorites.CLI.main()'"
 
 status:
 	$(NIX) sqlite3 -readonly $(DB) < server-next/scripts/status.sql

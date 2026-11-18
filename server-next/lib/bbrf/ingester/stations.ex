@@ -51,6 +51,15 @@ defmodule BBRF.Ingester.Stations do
   @doc "The radio-browser station fields, as stored in the stations table."
   def api_columns, do: @station_columns
 
+  @doc "A row of `api_columns/0` values as the station map radio-browser serves."
+  def to_api(row) do
+    @station_columns
+    |> Enum.zip(row)
+    |> Map.new()
+    # stored as 0/1, radio-browser serves it as a boolean
+    |> Map.update!("has_extended_info", &(&1 == 1))
+  end
+
   @insert_columns @station_columns ++ ["first_seen_at", "last_changed_at", "synced_at"]
 
   @row_placeholders "(" <> Enum.map_join(@insert_columns, ", ", fn _ -> "?" end) <> ")"
