@@ -14,6 +14,12 @@ defmodule BBRF.Sync.Receiver do
   already has from that node is left alone, and each node resumes from the
   highest `origin_id` the hub has from it.
 
+  Every ingest node polls every station, so two of them can catch the
+  same play. An observation is dropped when the hub already has one from
+  another node for the same station and title within 10 minutes of it. A
+  station that plays the same title twice that close together loses the
+  second play; that is rare enough.
+
   The first resolution of an artist credit the hub receives wins: the
   credit keeps `resolved_by`, the node it came from, and the hub ignores
   the credit and its artists from any other node. Two nodes resolve a
@@ -35,6 +41,8 @@ defmodule BBRF.Sync.Receiver do
   require Logger
   alias BBRF.{Env, Repo, Sync}
   alias BBRF.Ingester.Track
+
+  @duplicate_minutes 10
 
   # the key each upserted table is matched on
   @keys %{
@@ -200,6 +208,21 @@ defmodule BBRF.Sync.Receiver do
     do:
       {"artist_credit_id IN (SELECT id FROM artist_credits WHERE resolved_by = ?)",
        [origin!(caller)]}
+
+  # observed_at is ISO 8601 text, so the window is compared as text
+  # bounds, which lets idx_track_obs_station_time serve it
+  defp only("track_observations", _caller) do
+    {"""
+     NOT EXISTS (
+       SELECT 1 FROM track_observations o
+        WHERE o.stationuuid = v.stationuuid
+          AND o.observed_at BETWEEN strftime('%Y-%m-%dT%H:%M:%fZ', v.observed_at, ?)
+                                AND strftime('%Y-%m-%dT%H:%M:%fZ', v.observed_at, ?)
+          AND o.raw_title IS v.raw_title
+          AND o.origin IS NOT v.origin
+     )
+     """, ["-#{@duplicate_minutes} minutes", "+#{@duplicate_minutes} minutes"]}
+  end
 
   defp only(_table, _caller), do: {"true", []}
 

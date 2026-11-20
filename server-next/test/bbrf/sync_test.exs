@@ -105,8 +105,8 @@ defmodule BBRF.SyncTest do
     second =
       second_ingest!(ctx.hub, fn ->
         Repo.insert_all(TrackObservation, [
-          Metatable.observation(%{title: "Elsewhere"}),
-          Metatable.observation(%{title: "Elsewhere too"})
+          Metatable.observation(%{raw_title: "A - Elsewhere", title: "Elsewhere"}),
+          Metatable.observation(%{raw_title: "A - Elsewhere too", title: "Elsewhere too"})
         ])
       end)
 
@@ -114,10 +114,65 @@ defmodule BBRF.SyncTest do
     assert titles(ctx.hub) == ["Elsewhere", "Elsewhere too", "Halo", "Shine"]
 
     on(second, fn ->
-      Repo.insert_all(TrackObservation, [Metatable.observation(%{title: "New"})])
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{raw_title: "A - New", title: "New"})
+      ])
     end)
 
     assert {:ok, %{observations: 1}} = on(second, fn -> Sync.sync(node()) end)
+  end
+
+  defp station_1_plays(repo) do
+    %{rows: [[count]]} =
+      on(repo, fn ->
+        Repo.query!("SELECT COUNT(*) FROM track_observations WHERE stationuuid = 'station-1'")
+      end)
+
+    count
+  end
+
+  defp second_play(ctx, observed_at, raw_title \\ "Artist - Song") do
+    second =
+      second_ingest!(ctx.hub, fn ->
+        Repo.insert_all(TrackObservation, [
+          Metatable.observation(%{observed_at: observed_at, raw_title: raw_title})
+        ])
+      end)
+
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+  end
+
+  test "drops a play another ingest node already sent", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:04:00.000000Z")
+
+    assert station_1_plays(ctx.hub) == 1
+  end
+
+  test "keeps a play of the same title from another node further apart", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:30:00.000000Z")
+
+    assert station_1_plays(ctx.hub) == 2
+  end
+
+  test "keeps a play of another title from another node at the same time", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:00:00.000000Z", "Artist - Other Song")
+
+    assert station_1_plays(ctx.hub) == 2
+  end
+
+  test "keeps the same title twice close together from one node", ctx do
+    on(ctx.ingest, fn ->
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{observed_at: "2026-10-19T12:05:00.000000Z"})
+      ])
+    end)
+
+    {:ok, _} = Sync.sync(node())
+
+    assert station_1_plays(ctx.hub) == 2
   end
 
   test "a hub upgraded with its history keeps it as the ingest node's", ctx do
