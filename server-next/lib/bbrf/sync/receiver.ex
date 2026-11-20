@@ -3,14 +3,14 @@ defmodule BBRF.Sync.Receiver do
   The hub's end of `BBRF.Sync`, registered under its module name so the
   ingest node can call it as `{BBRF.Sync.Receiver, hub_node}`.
 
-  It answers only processes on SYNC_INGEST_NODE (nobody when unset),
+  It answers only processes on the SYNC_INGEST_NODE nodes (nobody when unset),
   only when both databases are at the same migration, and only writes
   `stations`, the artist catalogue and `station_metrics` (upserted) and
   `track_observations` (rows it already has are left alone) with exactly
   the columns its own tables have. It deletes the station metrics it holds
   from runs the ingest node has no rows from any more.
 
-  Options: `:ingest_node` overrides SYNC_INGEST_NODE, and `:repo` makes
+  Options: `:ingest_nodes` overrides SYNC_INGEST_NODE, and `:repo` makes
   it write to a dynamic repo (the tests run both ends on one node).
   """
 
@@ -40,17 +40,20 @@ defmodule BBRF.Sync.Receiver do
   @impl true
   def init(opts) do
     if repo = opts[:repo], do: Repo.put_dynamic_repo(repo)
-    {:ok, %{ingest_node: Keyword.get_lazy(opts, :ingest_node, &Sync.ingest_node/0)}}
+    {:ok, %{ingest_nodes: Keyword.get_lazy(opts, :ingest_nodes, &Sync.ingest_nodes/0)}}
   end
 
   @impl true
-  def handle_call(message, {caller, _tag}, %{ingest_node: allowed} = state)
-      when node(caller) != allowed do
-    Logger.warning("sync: refused #{elem_name(message)} from #{node(caller)}")
-    {:reply, {:error, :not_allowed}, state}
+  def handle_call(message, {caller, _tag} = from, state) do
+    if node(caller) in state.ingest_nodes do
+      answer(message, from, state)
+    else
+      Logger.warning("sync: refused #{elem_name(message)} from #{node(caller)}")
+      {:reply, {:error, :not_allowed}, state}
+    end
   end
 
-  def handle_call({:hello, version}, {caller, _tag}, state) do
+  defp answer({:hello, version}, {caller, _tag}, state) do
     case Sync.schema_version() do
       ^version ->
         Logger.info("sync: started by #{node(caller)}")
@@ -65,8 +68,8 @@ defmodule BBRF.Sync.Receiver do
     end
   end
 
-  def handle_call({:rows, table, columns, rows}, _from, state)
-      when table in @tables do
+  defp answer({:rows, table, columns, rows}, _from, state)
+       when table in @tables do
     if columns == Sync.columns(table) do
       insert(table, columns, rows)
       {:reply, :ok, state}
@@ -75,12 +78,12 @@ defmodule BBRF.Sync.Receiver do
     end
   end
 
-  def handle_call({:metric_runs, runs}, _from, state) when is_list(runs) do
+  defp answer({:metric_runs, runs}, _from, state) when is_list(runs) do
     drop_stale_metrics(runs)
     {:reply, :ok, state}
   end
 
-  def handle_call(message, _from, state) do
+  defp answer(message, _from, state) do
     {:reply, {:error, {:unknown_message, elem_name(message)}}, state}
   end
 

@@ -45,8 +45,14 @@ defmodule BBRF.Sync do
   @spec hub_node() :: node() | nil
   def hub_node, do: node_env("SYNC_HUB_NODE")
 
-  @spec ingest_node() :: node() | nil
-  def ingest_node, do: node_env("SYNC_INGEST_NODE")
+  @doc "The nodes SYNC_INGEST_NODE allows to push, comma separated."
+  @spec ingest_nodes() :: [node()]
+  def ingest_nodes do
+    "SYNC_INGEST_NODE"
+    |> Env.str("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.to_atom()))
+  end
 
   def interval_hours, do: Env.int("SYNC_INTERVAL_HOURS", 24)
 
@@ -69,9 +75,15 @@ defmodule BBRF.Sync do
 
   def children(:all), do: []
 
-  def describe(:hub),
-    do:
-      "sync: receiving from #{ingest_node() || "nobody (SYNC_INGEST_NODE unset)"}, keeping #{Track.retention_days()} days"
+  def describe(:hub) do
+    from =
+      case ingest_nodes() do
+        [] -> "nobody (SYNC_INGEST_NODE unset)"
+        nodes -> Enum.join(nodes, ", ")
+      end
+
+    "sync: receiving from #{from}, keeping #{Track.retention_days()} days"
+  end
 
   def describe(:ingest) do
     case hub_node() do

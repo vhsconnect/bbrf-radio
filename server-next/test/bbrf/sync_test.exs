@@ -10,7 +10,7 @@ defmodule BBRF.SyncTest do
   setup do
     ingest = start_repo!(:ingest)
     hub = start_repo!(:hub)
-    start_supervised!({Receiver, repo: hub, ingest_node: node()})
+    start_supervised!({Receiver, repo: hub, ingest_nodes: [node()]})
     Repo.put_dynamic_repo(ingest)
 
     on(ingest, fn ->
@@ -26,7 +26,7 @@ defmodule BBRF.SyncTest do
     end)
 
     on_exit(fn ->
-      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE), &System.delete_env/1)
+      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE SYNC_INGEST_NODE), &System.delete_env/1)
     end)
 
     %{ingest: ingest, hub: hub}
@@ -185,9 +185,22 @@ defmodule BBRF.SyncTest do
 
   test "refuses callers from other nodes", ctx do
     stop_supervised!(Receiver)
-    start_supervised!({Receiver, repo: ctx.hub, ingest_node: :impostor@elsewhere})
+    start_supervised!({Receiver, repo: ctx.hub, ingest_nodes: [:impostor@elsewhere]})
 
     assert Sync.sync(node()) == {:error, :not_allowed}
+  end
+
+  test "accepts any of the ingest nodes it is given", ctx do
+    stop_supervised!(Receiver)
+    start_supervised!({Receiver, repo: ctx.hub, ingest_nodes: [:other@elsewhere, node()]})
+
+    assert {:ok, _} = Sync.sync(node())
+  end
+
+  test "reads several ingest nodes from SYNC_INGEST_NODE" do
+    System.put_env("SYNC_INGEST_NODE", "bbrf_ingest@10.0.0.1, bbrf_ingest@10.0.0.2")
+
+    assert Sync.ingest_nodes() == [:"bbrf_ingest@10.0.0.1", :"bbrf_ingest@10.0.0.2"]
   end
 
   test "refuses rows for other tables or with other columns" do

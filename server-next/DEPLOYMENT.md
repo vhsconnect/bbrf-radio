@@ -203,7 +203,7 @@ A failed sync is logged as a warning on the ingest node, ending in the reason, a
 | `{:unreachable, :"bbrf_hub@..."}` | No connection: the hub is down, the firewall blocks 4369 or 9100-9105, `SYNC_HUB_NODE` has the wrong address, or the TLS handshake or cookie was refused. For those, the hub logs `TLS :server: ... Unknown CA` for a certificate it does not trust, `Unexpected Message` for a node without TLS, or a rejected connection attempt for a wrong cookie |
 | `:not_distributed` | The ingest node was not started through `make server` / `scripts/launch.fish` with `BBRF_ROLE=ingest` |
 | `{:schema_mismatch, hub, ingest}` | The two run different versions; upgrade the older one |
-| `:not_allowed` | The hub's `SYNC_INGEST_NODE` does not match the ingest node's name |
+| `:not_allowed` | The ingest node's name is not in the hub's `SYNC_INGEST_NODE` |
 | `{:columns_mismatch, table}` | A table was changed by hand on one side |
 
 The launcher stops with a message when the node's age key or `secrets/<role>.enc.yaml` is missing, or when the file was encrypted to another key. On NixOS the same shows up as `sops-install-secrets` failing during `nixos-rebuild`, and `bbrf.service` not starting for lack of its credentials.
