@@ -4,7 +4,7 @@ Commands run by hand against a node's database, next to the running server.
 
 ## Station metrics
 
-Scores every station played in the last `METRICS_WINDOW_DAYS` on each metric and stores the scores in `station_metrics`. Metrics are not computed on a schedule: run them on the ingest node (or the `all` node). The next sync copies them to the hub.
+Scores every station played in the last `METRICS_WINDOW_DAYS` on each metric and stores the scores in `station_metrics`. Metrics are not computed on a schedule: run them on the hub (or the `all` node). The hub has every ingest node's plays, as long as its `RETENTION_DAYS` covers `METRICS_WINDOW_DAYS`; metrics are not synced, so ones computed on an ingest node stay there.
 
     make metrics                                                     # on the host
     docker compose exec bbrf bin/bbrf eval "BBRF.Metrics.CLI.main()" # in the container

@@ -5,10 +5,8 @@ defmodule BBRF.Sync.Receiver do
 
   It answers only processes on the SYNC_INGEST_NODE nodes (nobody when unset),
   only when both databases are at the same migration, and only writes
-  `stations`, the artist catalogue and `station_metrics` (upserted) and
-  `track_observations` with exactly the columns its own tables have. It
-  deletes the station metrics it holds from runs the ingest node has no
-  rows from any more.
+  `stations` and the artist catalogue (upserted) and `track_observations`
+  with exactly the columns its own tables have.
 
   Every ingest node numbers its observations on its own, so the hub gives
   each one a new id and keeps where it came from: `origin` (the node's row
@@ -40,8 +38,7 @@ defmodule BBRF.Sync.Receiver do
     "artist_aliases" => ~w(artist_mbid alias),
     "artist_links" => ~w(artist_mbid url),
     "artist_credits" => ~w(id),
-    "artist_credit_artists" => ~w(artist_credit_id position),
-    "station_metrics" => ~w(stationuuid metric)
+    "artist_credit_artists" => ~w(artist_credit_id position)
   }
 
   @tables ["track_observations" | Map.keys(@keys)]
@@ -101,11 +98,6 @@ defmodule BBRF.Sync.Receiver do
     end
   end
 
-  defp answer({:metric_runs, runs}, _caller, state) when is_list(runs) do
-    drop_stale_metrics(runs)
-    {:reply, :ok, state}
-  end
-
   defp answer(message, _caller, state) do
     {:reply, {:error, {:unknown_message, elem_name(message)}}, state}
   end
@@ -133,16 +125,6 @@ defmodule BBRF.Sync.Receiver do
     if Track.retention_days() > 0 do
       DateTime.utc_now() |> DateTime.add(-Track.retention_days(), :day) |> DateTime.to_iso8601()
     end
-  end
-
-  defp drop_stale_metrics(runs) do
-    stale =
-      Enum.map_join(runs, " AND ", fn _run -> "NOT (metric = ? AND computed_at = ?)" end)
-
-    Repo.query!(
-      "DELETE FROM station_metrics" <> if(runs == [], do: "", else: " WHERE " <> stale),
-      Enum.flat_map(runs, &Tuple.to_list/1)
-    )
   end
 
   defp prepare("track_observations", columns, rows, caller) do

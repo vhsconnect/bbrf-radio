@@ -5,7 +5,7 @@ bbrf can run on one machine (`BBRF_ROLE=all`, the default: nothing on this page 
 - **hub**: a small machine, reachable from outside. Serves the frontend, the API and the favorites, and keeps a window of track history (`RETENTION_DAYS`, e.g. 90 days, about 5-10 GB). Never ingests.
 - **ingest**: a bigger machine, internal, not necessarily always on. Runs the ingester and keeps the full history.
 
-Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station, the station metrics and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
+Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station, the artist catalogue and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
 
 The link is mutual TLS with one private CA per role: only the ingest node's certificate is accepted by the hub, and the hub's own client side trusts nothing, so it cannot connect out. A shared cookie is the second check. Each node's TLS key and the cookie are kept in a [sops](https://github.com/getsops/sops) file encrypted to that node's [age](https://age-encryption.org) key and an admin key. See `BBRF.Sync` and `scripts/launch.fish` for the details.
 
@@ -137,7 +137,7 @@ Check that it worked:
 
 ## Station metrics
 
-Metrics are not computed on a schedule: run them by hand on the ingest node (or the `all` node) with `make metrics`, or through the container; see [docs/cli.md](../docs/cli.md).
+Metrics are not computed on a schedule: run them by hand on the hub (or the `all` node) with `make metrics`, or through the container; see [docs/cli.md](../docs/cli.md). They score the last `METRICS_WINDOW_DAYS` (60) of plays, so keep the hub's `RETENTION_DAYS` at least that long.
 
 ## Upgrades
 

@@ -75,7 +75,7 @@ defmodule BBRF.SyncTest do
   end
 
   test "copies the stations and the track history into the hub", ctx do
-    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, metrics: 0, observations: 2}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 2}}
 
     assert tracks(ctx.hub) == tracks(ctx.ingest)
     assert ctx.hub |> on(fn -> History.search("halo", 50, 0) end) |> length() == 2
@@ -92,7 +92,7 @@ defmodule BBRF.SyncTest do
       Repo.insert_all(TrackObservation, [Metatable.observation(%{title: "Encore"})])
     end)
 
-    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, metrics: 0, observations: 1}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 1}}
     assert tracks(ctx.hub) == tracks(ctx.ingest)
 
     assert ctx.hub |> tracks() |> Enum.map(& &1["station"]["name"]) |> Enum.uniq() |> Enum.sort() ==
@@ -230,46 +230,20 @@ defmodule BBRF.SyncTest do
              end)
   end
 
-  test "copies the station metrics and drops the hub's rows from other runs", ctx do
-    metric = fn stationuuid, computed_at ->
-      on(ctx.ingest, fn ->
-        Repo.query!(
-          "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES (?, 'balance', 0.5, 60, ?)",
-          [stationuuid, computed_at]
-        )
-      end)
-    end
-
-    hub_metrics = fn ->
-      on(ctx.hub, fn ->
-        Repo.query!(
-          "SELECT stationuuid, metric, computed_at FROM station_metrics ORDER BY stationuuid"
-        ).rows
-      end)
-    end
-
-    metric.("station-1", "run-1")
-    metric.("station-2", "run-1")
-    assert {:ok, %{metrics: 2}} = Sync.sync(node())
-
-    on(ctx.ingest, fn -> Repo.query!("DELETE FROM station_metrics") end)
-    metric.("station-1", "run-2")
-    assert {:ok, %{metrics: 1}} = Sync.sync(node())
-
-    assert hub_metrics.() == [["station-1", "balance", "run-2"]]
-  end
-
-  test "keeps the hub's rows from every run the ingest node still has", ctx do
+  test "leaves the station metrics out", ctx do
     on(ctx.ingest, fn ->
       Repo.query!(
-        "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES ('station-1', 'balance', 0.5, 60, 'run-1'), ('station-2', 'balance', 0.5, 60, 'run-2')"
+        "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES ('station-1', 'balance', 0.5, 60, 'run-1')"
       )
     end)
 
     {:ok, _} = Sync.sync(node())
 
-    assert %{rows: [[2]]} =
+    assert %{rows: [[0]]} =
              on(ctx.hub, fn -> Repo.query!("SELECT COUNT(*) FROM station_metrics") end)
+
+    assert {:error, {:unknown_message, _}} =
+             GenServer.call(Receiver, {:rows, "station_metrics", ["stationuuid"], [["x"]]})
   end
 
   test "leaves out observations older than the hub keeps", ctx do
