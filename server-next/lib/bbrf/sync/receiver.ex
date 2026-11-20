@@ -14,6 +14,12 @@ defmodule BBRF.Sync.Receiver do
   already has from that node is left alone, and each node resumes from the
   highest `origin_id` the hub has from it.
 
+  The first resolution of an artist credit the hub receives wins: the
+  credit keeps `resolved_by`, the node it came from, and the hub ignores
+  the credit and its artists from any other node. Two nodes resolve a
+  credit from their own stations' titles and can split it differently,
+  and mixing the two would make a credit neither of them found.
+
   A station any ingest node sent as 'removed' in the last
   REMOVED_TTL_DAYS (30) stays removed whatever the others send:
   each node only learns of a removal at its own catalogue sync, and the
@@ -91,7 +97,7 @@ defmodule BBRF.Sync.Receiver do
        when table in @tables do
     if columns == Sync.columns(table) do
       {columns, rows} = prepare(table, columns, rows, caller)
-      insert(table, columns, rows)
+      insert(table, columns, rows, caller)
       {:reply, :ok, state}
     else
       {:reply, {:error, {:columns_mismatch, table}}, state}
@@ -154,25 +160,48 @@ defmodule BBRF.Sync.Receiver do
     {columns, rows}
   end
 
+  defp prepare("artist_credits", columns, rows, caller) do
+    origin = origin!(caller)
+    [status_at, by_at] = Enum.map(~w(status resolved_by), &column_at(columns, &1))
+
+    rows =
+      Enum.map(rows, fn row ->
+        List.replace_at(row, by_at, if(Enum.at(row, status_at) == "resolved", do: origin))
+      end)
+
+    {columns, rows}
+  end
+
   defp prepare(_table, columns, rows, _caller), do: {columns, rows}
 
   defp column_at(columns, column), do: Enum.find_index(columns, &(&1 == column))
 
-  defp insert(_table, _columns, []), do: :ok
+  defp insert(_table, _columns, [], _caller), do: :ok
 
-  defp insert(table, columns, rows) do
+  defp insert(table, columns, rows, caller) do
+    quoted = Enum.map_join(columns, ", ", &~s("#{&1}"))
     row = "(" <> Enum.map_join(columns, ", ", fn _ -> "?" end) <> ")"
+    {only, only_params} = only(table, caller)
     {on_conflict, params} = on_conflict(table, columns)
 
     Repo.query!(
       """
-      INSERT INTO #{table} (#{Enum.map_join(columns, ", ", &~s("#{&1}"))})
-      VALUES #{Enum.map_join(rows, ", ", fn _ -> row end)}
+      WITH v(#{quoted}) AS (VALUES #{Enum.map_join(rows, ", ", fn _ -> row end)})
+      INSERT INTO #{table} (#{quoted})
+      SELECT * FROM v WHERE #{only}
       #{on_conflict}
       """,
-      List.flatten(rows) ++ params
+      List.flatten(rows) ++ only_params ++ params
     )
   end
+
+  # which of the rows sent go in at all
+  defp only("artist_credit_artists", caller),
+    do:
+      {"artist_credit_id IN (SELECT id FROM artist_credits WHERE resolved_by = ?)",
+       [origin!(caller)]}
+
+  defp only(_table, _caller), do: {"true", []}
 
   defp on_conflict("track_observations", _columns),
     do: {"ON CONFLICT (origin, origin_id) WHERE origin IS NOT NULL DO NOTHING", []}
@@ -188,6 +217,12 @@ defmodule BBRF.Sync.Receiver do
            ELSE excluded.meta_state END,
          removed_seen_at = COALESCE(excluded.removed_seen_at, stations.removed_seen_at)
        """, [cutoff]}
+  end
+
+  defp on_conflict("artist_credits", columns) do
+    {upsert("artist_credits", columns) <>
+       " WHERE artist_credits.resolved_by IS NULL OR artist_credits.resolved_by = excluded.resolved_by",
+     []}
   end
 
   defp on_conflict(table, columns), do: {upsert(table, columns), []}

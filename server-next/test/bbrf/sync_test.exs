@@ -57,9 +57,9 @@ defmodule BBRF.SyncTest do
 
   defp tracks(repo), do: on(repo, fn -> History.tracks([], "played", "desc", 50, 0) end)
 
-  defp second_ingest!(hub, observations) do
+  defp second_ingest!(hub, fill) do
     second = start_repo!(:second)
-    on(second, fn -> Repo.insert_all(TrackObservation, observations) end)
+    on(second, fill)
 
     stop_supervised!(Receiver)
 
@@ -103,10 +103,12 @@ defmodule BBRF.SyncTest do
     {:ok, _} = Sync.sync(node())
 
     second =
-      second_ingest!(ctx.hub, [
-        Metatable.observation(%{title: "Elsewhere"}),
-        Metatable.observation(%{title: "Elsewhere too"})
-      ])
+      second_ingest!(ctx.hub, fn ->
+        Repo.insert_all(TrackObservation, [
+          Metatable.observation(%{title: "Elsewhere"}),
+          Metatable.observation(%{title: "Elsewhere too"})
+        ])
+      end)
 
     assert {:ok, %{observations: 2}} = on(second, fn -> Sync.sync(node()) end)
     assert titles(ctx.hub) == ["Elsewhere", "Elsewhere too", "Halo", "Shine"]
@@ -126,6 +128,8 @@ defmodule BBRF.SyncTest do
         Metatable.observation(%{title: "Halo"}),
         Metatable.observation(%{title: "Shine"})
       ])
+
+      credit("resolved", ["mbid-duo"])
     end)
 
     System.put_env("BBRF_ROLE", "hub")
@@ -137,6 +141,11 @@ defmodule BBRF.SyncTest do
 
     assert {:ok, %{observations: 0}} = Sync.sync(node())
     assert titles(hub) == titles(ctx.ingest)
+
+    second = second_ingest!(hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(hub) == ["mbid-duo"]
   end
 
   defp station_state(repo, stationuuid) do
@@ -228,6 +237,61 @@ defmodule BBRF.SyncTest do
                  "SELECT a.name, ca.position FROM artist_credit_artists ca JOIN artists a ON a.mbid = ca.artist_mbid"
                )
              end)
+  end
+
+  defp credit(status, mbids) do
+    Enum.each(mbids, fn mbid ->
+      Repo.query!(
+        "INSERT INTO artists (mbid, name, fetched_at) VALUES (?, ?, '2026-10-29')",
+        [mbid, mbid]
+      )
+    end)
+
+    Repo.query!(
+      "INSERT INTO artist_credits (id, name, status, attempts, checked_at) VALUES (7, 'Simon & Garfunkel', ?, 1, '2026-10-29')",
+      [status]
+    )
+
+    mbids
+    |> Enum.with_index()
+    |> Enum.each(fn {mbid, position} ->
+      Repo.query!(
+        "INSERT INTO artist_credit_artists (artist_credit_id, position, artist_mbid) VALUES (7, ?, ?)",
+        [position, mbid]
+      )
+    end)
+  end
+
+  defp credit_artists(repo) do
+    on(repo, fn ->
+      Repo.query!(
+        "SELECT artist_mbid FROM artist_credit_artists WHERE artist_credit_id = 7 ORDER BY position"
+      ).rows
+      |> List.flatten()
+    end)
+  end
+
+  test "keeps the first resolution of a credit it receives", ctx do
+    on(ctx.ingest, fn -> credit("resolved", ["mbid-duo"]) end)
+    {:ok, _} = Sync.sync(node())
+
+    second = second_ingest!(ctx.hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(ctx.hub) == ["mbid-duo"]
+  end
+
+  test "takes a resolution from another node over a credit no node resolved", ctx do
+    on(ctx.ingest, fn -> credit("unresolved", []) end)
+    {:ok, _} = Sync.sync(node())
+
+    second = second_ingest!(ctx.hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(ctx.hub) == ["mbid-paul", "mbid-art"]
+
+    assert %{rows: [["resolved"]]} =
+             on(ctx.hub, fn -> Repo.query!("SELECT status FROM artist_credits WHERE id = 7") end)
   end
 
   test "leaves the station metrics out", ctx do
