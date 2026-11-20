@@ -82,7 +82,7 @@ defmodule BBRF.Sync do
         nodes -> Enum.join(nodes, ", ")
       end
 
-    "sync: receiving from #{from}, keeping #{Track.retention_days()} days"
+    "sync: receiving from #{from}, keeping #{Track.retention_days()} days, removals for #{Receiver.removed_ttl_days()} days"
   end
 
   def describe(:ingest) do

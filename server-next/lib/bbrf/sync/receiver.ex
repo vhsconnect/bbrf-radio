@@ -16,6 +16,12 @@ defmodule BBRF.Sync.Receiver do
   already has from that node is left alone, and each node resumes from the
   highest `origin_id` the hub has from it.
 
+  A station any ingest node sent as 'removed' in the last
+  REMOVED_TTL_DAYS (30) stays removed whatever the others send:
+  each node only learns of a removal at its own catalogue sync, and the
+  nodes resend their removed stations every time. Once no node has sent
+  it as removed for that long, the station takes the state sent.
+
   Options: `:ingest_nodes` overrides SYNC_INGEST_NODE, `:repo` makes it
   write to a dynamic repo, and `:caller_node` counts every caller as that
   node (the tests run every end on one node).
@@ -23,7 +29,7 @@ defmodule BBRF.Sync.Receiver do
 
   use GenServer
   require Logger
-  alias BBRF.{Repo, Sync}
+  alias BBRF.{Env, Repo, Sync}
   alias BBRF.Ingester.Track
 
   # the key each upserted table is matched on
@@ -39,6 +45,8 @@ defmodule BBRF.Sync.Receiver do
   }
 
   @tables ["track_observations" | Map.keys(@keys)]
+
+  def removed_ttl_days, do: Env.int("REMOVED_TTL_DAYS", 30)
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -152,6 +160,18 @@ defmodule BBRF.Sync.Receiver do
     {List.delete_at(columns, id_at), rows}
   end
 
+  defp prepare("stations", columns, rows, _caller) do
+    [state_at, seen_at] = Enum.map(~w(meta_state removed_seen_at), &column_at(columns, &1))
+    now = DateTime.to_iso8601(DateTime.utc_now())
+
+    rows =
+      Enum.map(rows, fn row ->
+        List.replace_at(row, seen_at, if(Enum.at(row, state_at) == "removed", do: now))
+      end)
+
+    {columns, rows}
+  end
+
   defp prepare(_table, columns, rows, _caller), do: {columns, rows}
 
   defp column_at(columns, column), do: Enum.find_index(columns, &(&1 == column))
@@ -160,21 +180,37 @@ defmodule BBRF.Sync.Receiver do
 
   defp insert(table, columns, rows) do
     row = "(" <> Enum.map_join(columns, ", ", fn _ -> "?" end) <> ")"
+    {on_conflict, params} = on_conflict(table, columns)
 
     Repo.query!(
       """
       INSERT INTO #{table} (#{Enum.map_join(columns, ", ", &~s("#{&1}"))})
       VALUES #{Enum.map_join(rows, ", ", fn _ -> row end)}
-      #{on_conflict(table, columns)}
+      #{on_conflict}
       """,
-      List.flatten(rows)
+      List.flatten(rows) ++ params
     )
   end
 
   defp on_conflict("track_observations", _columns),
-    do: "ON CONFLICT (origin, origin_id) WHERE origin IS NOT NULL DO NOTHING"
+    do: {"ON CONFLICT (origin, origin_id) WHERE origin IS NOT NULL DO NOTHING", []}
 
-  defp on_conflict(table, columns) do
+  defp on_conflict("stations", columns) do
+    cutoff =
+      DateTime.utc_now() |> DateTime.add(-removed_ttl_days(), :day) |> DateTime.to_iso8601()
+
+    {upsert("stations", columns -- ~w(meta_state removed_seen_at)) <>
+       """
+       , meta_state = CASE
+           WHEN excluded.meta_state = 'removed' OR stations.removed_seen_at > ? THEN 'removed'
+           ELSE excluded.meta_state END,
+         removed_seen_at = COALESCE(excluded.removed_seen_at, stations.removed_seen_at)
+       """, [cutoff]}
+  end
+
+  defp on_conflict(table, columns), do: {upsert(table, columns), []}
+
+  defp upsert(table, columns) do
     keys = @keys[table]
 
     "ON CONFLICT (#{Enum.map_join(keys, ", ", &~s("#{&1}"))}) DO UPDATE SET " <>

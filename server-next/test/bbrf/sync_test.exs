@@ -139,6 +139,61 @@ defmodule BBRF.SyncTest do
     assert titles(hub) == titles(ctx.ingest)
   end
 
+  defp station_state(repo, stationuuid) do
+    %{rows: [[state]]} =
+      on(repo, fn ->
+        Repo.query!("SELECT meta_state FROM stations WHERE stationuuid = ?", [stationuuid])
+      end)
+
+    state
+  end
+
+  defp ingest_state(ctx, state) do
+    on(ctx.ingest, fn ->
+      Repo.query!("UPDATE stations SET meta_state = ? WHERE stationuuid = 'station-1'", [state])
+    end)
+  end
+
+  test "keeps a station removed while an ingest node sent it as removed lately", ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "removed"
+  end
+
+  test "takes the state sent once no ingest node sent the station as removed for REMOVED_TTL_DAYS",
+       ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    on(ctx.hub, fn ->
+      Repo.query!("UPDATE stations SET removed_seen_at = '2026-01-01T00:00:00Z'")
+    end)
+
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "ok"
+  end
+
+  test "a removal resent by an ingest node keeps the station removed", ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    on(ctx.hub, fn ->
+      Repo.query!("UPDATE stations SET removed_seen_at = '2026-01-01T00:00:00Z'")
+    end)
+
+    {:ok, _} = Sync.sync(node())
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "removed"
+  end
+
   test "copies the artist catalogue and updates it on the next sync", ctx do
     artist = fn name ->
       on(ctx.ingest, fn ->
