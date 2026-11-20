@@ -11,8 +11,8 @@ defmodule BBRF.Sync do
     1. connects to SYNC_HUB_NODE
     2. says hello with its schema version (the newest migration). The
        hub refuses unless it is at the same one; otherwise it replies
-       with its highest observation id and the oldest observation time
-       its retention keeps
+       with the highest of this node's observation ids it holds and the
+       oldest observation time its retention keeps
     3. upserts every station
     4. upserts the whole artist catalogue, parents before the rows
        referencing them
@@ -22,8 +22,8 @@ defmodule BBRF.Sync do
     7. disconnects
 
   Rows go in batches, one call each, so the hub sets the pace and writes
-  in short transactions. A sync that breaks off resumes from the hub's
-  highest id the next time. The last successful one is recorded in
+  in short transactions. A sync that breaks off resumes from the highest
+  of this node's ids the hub has the next time. The last successful one is recorded in
   ingest_stats under `sync`; the next is due SYNC_INTERVAL_HOURS
   (default 24) after it, checked every 10 minutes so a failed one is
   retried soon.

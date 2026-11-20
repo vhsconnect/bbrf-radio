@@ -26,19 +26,23 @@ defmodule BBRF.SyncTest do
     end)
 
     on_exit(fn ->
-      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE SYNC_INGEST_NODE), &System.delete_env/1)
+      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE SYNC_INGEST_NODE BBRF_ROLE), &System.delete_env/1)
     end)
 
     %{ingest: ingest, hub: hub}
   end
 
-  defp start_repo!(id) do
+  defp start_repo!(id, migrate_opts \\ [all: true]) do
     repo = start_supervised!({Repo, name: nil, database: ":memory:", pool_size: 1}, id: id)
+    migrate!(repo, migrate_opts)
+    repo
+  end
+
+  defp migrate!(repo, opts \\ [all: true]) do
     # the boot already loaded the migration modules
     Code.put_compiler_option(:ignore_module_conflict, true)
-    Ecto.Migrator.run(Repo, :up, all: true, dynamic_repo: repo, log: false)
+    Ecto.Migrator.run(Repo, :up, opts ++ [dynamic_repo: repo, log: false])
     Code.put_compiler_option(:ignore_module_conflict, false)
-    repo
   end
 
   defp on(repo, fun) do
@@ -52,6 +56,23 @@ defmodule BBRF.SyncTest do
   end
 
   defp tracks(repo), do: on(repo, fn -> History.tracks([], "played", "desc", 50, 0) end)
+
+  defp second_ingest!(hub, observations) do
+    second = start_repo!(:second)
+    on(second, fn -> Repo.insert_all(TrackObservation, observations) end)
+
+    stop_supervised!(Receiver)
+
+    start_supervised!(
+      {Receiver, repo: hub, ingest_nodes: [:second@ingest], caller_node: :second@ingest}
+    )
+
+    second
+  end
+
+  defp titles(repo) do
+    repo |> tracks() |> Enum.map(& &1["title"]) |> Enum.sort()
+  end
 
   test "copies the stations and the track history into the hub", ctx do
     assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, metrics: 0, observations: 2}}
@@ -76,6 +97,46 @@ defmodule BBRF.SyncTest do
 
     assert ctx.hub |> tracks() |> Enum.map(& &1["station"]["name"]) |> Enum.uniq() |> Enum.sort() ==
              ["Another FM", "Renamed FM"]
+  end
+
+  test "keeps the observations of two ingest nodes that number them alike", ctx do
+    {:ok, _} = Sync.sync(node())
+
+    second =
+      second_ingest!(ctx.hub, [
+        Metatable.observation(%{title: "Elsewhere"}),
+        Metatable.observation(%{title: "Elsewhere too"})
+      ])
+
+    assert {:ok, %{observations: 2}} = on(second, fn -> Sync.sync(node()) end)
+    assert titles(ctx.hub) == ["Elsewhere", "Elsewhere too", "Halo", "Shine"]
+
+    on(second, fn ->
+      Repo.insert_all(TrackObservation, [Metatable.observation(%{title: "New"})])
+    end)
+
+    assert {:ok, %{observations: 1}} = on(second, fn -> Sync.sync(node()) end)
+  end
+
+  test "a hub upgraded with its history keeps it as the ingest node's", ctx do
+    hub = start_repo!(:legacy_hub, to: 20_261_110_120_011)
+
+    on(hub, fn ->
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{title: "Halo"}),
+        Metatable.observation(%{title: "Shine"})
+      ])
+    end)
+
+    System.put_env("BBRF_ROLE", "hub")
+    System.put_env("SYNC_INGEST_NODE", to_string(node()))
+    migrate!(hub)
+
+    stop_supervised!(Receiver)
+    start_supervised!({Receiver, repo: hub, ingest_nodes: [node()]})
+
+    assert {:ok, %{observations: 0}} = Sync.sync(node())
+    assert titles(hub) == titles(ctx.ingest)
   end
 
   test "copies the artist catalogue and updates it on the next sync", ctx do

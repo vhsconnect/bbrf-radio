@@ -143,6 +143,8 @@ Metrics are not computed on a schedule: run them by hand on the ingest node (or 
 
 Deploy the same version to both machines. When a version brings a migration, the hub refuses syncs until both sides run it, logging `sync: refused, the hub is at migration X and the ingest node at Y`; nothing is lost, the next sync after both are upgraded catches up. The order does not matter.
 
+The upgrade that numbers observations per ingest node (migration `20261120120012`) hands the hub's existing history to the first node in its `SYNC_INGEST_NODE`, so start the hub with `BBRF_ROLE=hub` and `SYNC_INGEST_NODE` set for it. A hub that misses it is sent its whole retention window again, once, and keeps both copies.
+
 ## Certificates
 
 The node certificates last a year and the CAs five. `make secrets-check` on the admin machine fails when a node certificate has less than 30 days left, or when a CA expires before a renewed certificate would.
