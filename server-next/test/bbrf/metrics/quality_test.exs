@@ -3,7 +3,7 @@ defmodule BBRF.Metrics.QualityTest do
 
   alias BBRF.Metatable
   alias BBRF.Ingester.Stations
-  alias BBRF.Metrics.Quality
+  alias BBRF.Metrics.Catalogue
 
   setup do
     Metatable.reset_db!()
@@ -12,7 +12,7 @@ defmodule BBRF.Metrics.QualityTest do
   defp quality(codec, bitrate) do
     Stations.upsert([Metatable.station(%{"codec" => codec, "bitrate" => bitrate})])
 
-    %{"station-1" => %{"hi_qlty" => %{"value" => value}}} = Quality.for_stations(["station-1"])
+    %{"station-1" => %{"hi_qlty" => %{"value" => value}}} = Catalogue.for_stations(["station-1"])
     value
   end
 
@@ -40,11 +40,11 @@ defmodule BBRF.Metrics.QualityTest do
   test "carries the reported bitrate as the sample under both names" do
     Stations.upsert([Metatable.station(%{"codec" => "MP3", "bitrate" => 96})])
 
-    assert Quality.for_stations(["station-1", "not-in-catalogue"]) == %{
+    assert %{
              "station-1" => %{
                "hi_qlty" => %{"value" => 96.0, "sample" => 96},
                "lo_qlty" => %{"value" => 96.0, "sample" => 96}
              }
-           }
+           } = Catalogue.for_stations(["station-1", "not-in-catalogue"])
   end
 end
