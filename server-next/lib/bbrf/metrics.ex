@@ -23,12 +23,12 @@ defmodule BBRF.Metrics do
 
   alias BBRF.Metrics.{
     Balance,
+    Catalogue,
     International,
     NoSsAds,
     Obscure500,
     Obscure1500,
-    Obscure2500,
-    Quality
+    Obscure2500
   }
 
   @chunk 500
@@ -40,8 +40,8 @@ defmodule BBRF.Metrics do
 
   def all, do: [International, Balance, NoSsAds, Obscure500, Obscure1500, Obscure2500]
 
-  @doc "What a `/by*` route sorts on: the stored metrics, then `BBRF.Metrics.Quality`."
-  def names, do: Enum.map(all(), & &1.name()) ++ Quality.names()
+  @doc "What a `/by*` route sorts on: the stored metrics, then `BBRF.Metrics.Catalogue`'s."
+  def names, do: Enum.map(all(), & &1.name()) ++ Catalogue.names()
 
   @doc """
   Compute `metrics` once at `now`. A metric that raises is recorded and
@@ -59,8 +59,8 @@ defmodule BBRF.Metrics do
 
   @doc """
   `stations` (radio-browser station maps) each with a `"metrics"` map of
-  its stored rows and, when in the catalogue, its `BBRF.Metrics.Quality`,
-  by name, as `%{"value" => value, "sample" => sample}`. A station with
+  its stored rows and, when in the catalogue, its `BBRF.Metrics.Catalogue`
+  sorts, by name, as `%{"value" => value, "sample" => sample}`. A station with
   neither gets an empty map.
   """
   def enrich([]), do: []
@@ -68,13 +68,13 @@ defmodule BBRF.Metrics do
   def enrich(stations) when is_list(stations) do
     stationuuids = Enum.map(stations, & &1["stationuuid"])
     stored = for_stations(stationuuids)
-    quality = Quality.for_stations(stationuuids)
+    catalogue = Catalogue.for_stations(stationuuids)
 
     Enum.map(stations, fn station ->
       metrics =
         Map.merge(
           Map.get(stored, station["stationuuid"], %{}),
-          Map.get(quality, station["stationuuid"], %{})
+          Map.get(catalogue, station["stationuuid"], %{})
         )
 
       Map.put(station, "metrics", metrics)
@@ -83,8 +83,9 @@ defmodule BBRF.Metrics do
 
   @doc """
   Catalogue stations matching `filter` (`BBRF.History.station_condition/1`),
-  highest `metric` value first (`lo_qlty` lowest), enriched like
-  `enrich/1`. Stations without a value come last; ties go by name.
+  highest `metric` value first, a `BBRF.Metrics.Catalogue` sort in its
+  own direction, enriched like `enrich/1`. Stations without a value come
+  last; ties go by name.
   Stations the catalogue sync marked removed are left out.
   """
   @spec ranked({atom(), String.t()}, String.t(), pos_integer(), non_neg_integer()) :: [map()]
@@ -111,11 +112,14 @@ defmodule BBRF.Metrics do
   end
 
   defp sort(metric) do
-    if metric in Quality.names(),
-      do: {"", [], Quality.sql(), Quality.direction(metric)},
-      else:
+    case Catalogue.sort(metric) do
+      {value, direction} ->
+        {"", [], value, direction}
+
+      nil ->
         {"LEFT JOIN station_metrics m ON m.stationuuid = s.stationuuid AND m.metric = ?",
          [metric], "m.value", "DESC"}
+    end
   end
 
   defp for_stations(stationuuids) do

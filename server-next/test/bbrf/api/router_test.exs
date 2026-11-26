@@ -211,6 +211,25 @@ defmodule BBRF.API.RouterTest do
              call_get("/byname/fm?sort=lo_qlty")
   end
 
+  test "GET /by* with ?sort=hi_clicks or lo_clicks ranks the catalogue by clicks, none last" do
+    Metatable.reset_db!()
+
+    Stations.upsert([
+      Metatable.station(%{"name" => "Mid FM", "clickcount" => 40}),
+      Metatable.station(%{"stationuuid" => "station-2", "name" => "Hi FM", "clickcount" => 900}),
+      Metatable.station(%{"stationuuid" => "station-3", "name" => "Idle FM", "clickcount" => 0}),
+      Metatable.station(%{"stationuuid" => "station-4", "name" => "Lo FM", "clickcount" => 2})
+    ])
+
+    names = fn path -> path |> call_get() |> Enum.map(& &1["name"]) end
+
+    assert names.("/byname/fm?sort=hi_clicks") == ["Hi FM", "Mid FM", "Lo FM", "Idle FM"]
+    assert names.("/byname/fm?sort=lo_clicks") == ["Lo FM", "Mid FM", "Hi FM", "Idle FM"]
+
+    assert [%{"metrics" => %{"lo_clicks" => %{"value" => 2, "sample" => 2}}} | _] =
+             call_get("/byname/fm?sort=lo_clicks")
+  end
+
   test "GET /bytrack/:query with ?sort ranks the stations that played a match" do
     Metatable.reset_db!()
 
