@@ -4,7 +4,9 @@
 #
 #   all          plain distribution, -sname $NODE (default bbrf)
 #   hub, ingest  TLS distribution (see server-next/README.md): decrypts the node's
-#                $SECRETS_DIR/<role>.enc.yaml with its age key into RUNTIME_DIR (the TLS key,
+#                $SECRETS_DIR/<SECRETS_NAME>.enc.yaml (SECRETS_NAME defaults to the role; ingest-2
+#                and so on for the ingest nodes `secrets.fish add-ingest` made) with its age key
+#                into RUNTIME_DIR (the TLS key,
 #                the cookie and the TLS option file), then passes the VM flags in
 #                ELIXIR_ERL_OPTIONS, which both elixir and releases read
 #
@@ -52,7 +54,8 @@ end
 
 command -q sops; or die "sops not found (it is in the nix devShell)"
 set secrets_dir (path resolve $secrets_dir)
-set secrets $secrets_dir/$role.enc.yaml
+set name (env_or SECRETS_NAME $role)
+set secrets $secrets_dir/$name.enc.yaml
 test -f $secrets; or die "$secrets not found; run 'make secrets' on the admin machine and copy secrets/ here"
 test -f $age_key_file; or die "no age key at $age_key_file; run 'make age-key'"
 
@@ -87,8 +90,8 @@ printf '[{server, [{cacertfile, "%s"}, {certfile, "%s"},
            {keyfile, "%s"}, {secure_renegotiate, true},
            {verify, verify_peer}]}].
 ' \
-    $secrets_dir/$server_ca.crt $secrets_dir/$role.crt $runtime/key.pem \
-    $secrets_dir/$client_ca.crt $secrets_dir/$role.crt $runtime/key.pem >$runtime/dist.conf
+    $secrets_dir/$server_ca.crt $secrets_dir/$name.crt $runtime/key.pem \
+    $secrets_dir/$client_ca.crt $secrets_dir/$name.crt $runtime/key.pem >$runtime/dist.conf
 
 set flags -name $node -proto_dist inet_tls -ssl_dist_optfile $runtime/dist.conf -connect_all false \
     -kernel inet_dist_listen_min $port_min inet_dist_listen_max $port_max

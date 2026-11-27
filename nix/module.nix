@@ -22,8 +22,37 @@ let
   cfg = config.services.bbrf;
   dist = cfg.distribution;
   distributed = cfg.role != "all";
-  peerRole = if cfg.role == "hub" then "ingest" else "hub";
   isIPv4 = addr: builtins.match "[0-9]+(\\.[0-9]+){3}" addr != null;
+
+  # the names are those `secrets` gives the files: hub, ingest, ingest-<suffix>
+  roleOf = name: if name == "hub" then "hub" else "ingest";
+  addressOf = lib.listToAttrs (map (n: lib.nameValuePair n.name n.address) cfg.nodes);
+  nodeName = name: "bbrf_${roleOf name}@${addressOf.${name}}";
+  ingestNames = lib.filter (name: name != "hub") (map (n: n.name) cfg.nodes);
+  addedIngestNames = lib.filter (name: name != "ingest") ingestNames;
+
+  secretsScript =
+    let
+      bin = lib.getExe flake.packages.${pkgs.stdenv.hostPlatform.system}.bbrf-secrets;
+      addIngest = name: ''
+        INGEST_NAME=${name} INGEST_ADDR=${addressOf.${name}} INGEST_AGE=ssh ${bin} add-ingest
+      '';
+    in
+    pkgs.writeShellScriptBin "bbrf-secrets" ''
+      set -eu
+      case "$*" in
+        init)
+          HUB_ADDR=${addressOf.hub} HUB_AGE=ssh INGEST_ADDR=${addressOf.ingest} INGEST_AGE=ssh ${bin} init
+          ${lib.concatMapStrings addIngest addedIngestNames}
+          ;;
+        ${lib.concatMapStrings (name: ''
+          add-ingest\ ${name}) ${addIngest name} ;;
+        '') addedIngestNames}
+        *)
+          exec ${bin} "$@"
+          ;;
+      esac
+    '';
 
   # systemd puts LoadCredential= files here for a system service
   credentials = "/run/credentials/bbrf.service";
@@ -41,12 +70,12 @@ let
   };
 
   distConf = pkgs.writeText "bbrf-${cfg.role}-dist.conf" ''
-    [{server, [{cacertfile, "${dist.certificates}/${trust.${cfg.role}.server}.crt"},
-               {certfile, "${dist.certificates}/${cfg.role}.crt"},
+    [{server, [{cacertfile, "${cfg.secrets}/${trust.${cfg.role}.server}.crt"},
+               {certfile, "${cfg.secrets}/${cfg.node}.crt"},
                {keyfile, "${credentials}/key"}, {secure_renegotiate, true},
                {verify, verify_peer}, {fail_if_no_peer_cert, true}]},
-     {client, [{cacertfile, "${dist.certificates}/${trust.${cfg.role}.client}.crt"},
-               {certfile, "${dist.certificates}/${cfg.role}.crt"},
+     {client, [{cacertfile, "${cfg.secrets}/${trust.${cfg.role}.client}.crt"},
+               {certfile, "${cfg.secrets}/${cfg.node}.crt"},
                {keyfile, "${credentials}/key"}, {secure_renegotiate, true},
                {verify, verify_peer}]}].
   '';
@@ -55,14 +84,14 @@ let
   bind =
     if cfg.role == "ingest" then
       "127.0.0.1"
-    else if isIPv4 dist.address then
-      dist.address
+    else if isIPv4 addressOf.${cfg.node} then
+      addressOf.${cfg.node}
     else
       null;
 
   erlFlags = lib.concatStringsSep " " (
     [
-      "-name bbrf_${cfg.role}@${dist.address}"
+      "-name ${nodeName cfg.node}"
       "-proto_dist inet_tls"
       "-ssl_dist_optfile ${distConf}"
       "-connect_all false"
@@ -95,6 +124,11 @@ in
       "bbrf"
       "staticSiteServedOn"
     ] "Removed along with services.bbrf.serveStaticSite.")
+    (lib.mkRemovedOptionModule [
+      "services"
+      "bbrf"
+      "favoritesImportFile"
+    ] "Favorites are no longer imported from a node server's storage.json.")
   ];
 
   options.services.bbrf = {
@@ -113,10 +147,75 @@ in
         "hub"
         "ingest"
       ];
-      default = "all";
+      default = if cfg.node != null then roleOf cfg.node else "all";
+      defaultText = lib.literalMD "`hub` or `ingest`, from {option}`services.bbrf.node`; `all` without one";
       description = ''
         `all` runs the API and the ingester on one database. `hub` serves the API and receives
-        syncs; `ingest` ingests and pushes to the hub. Both need {option}`services.bbrf.distribution`.
+        syncs; `ingest` ingests and pushes to the hub.
+      '';
+    };
+
+    nodes = mkOption {
+      type = types.listOf (
+        types.submodule {
+          options = {
+            name = mkOption {
+              type = types.str;
+              example = "ingest-2";
+              description = ''
+                Its file names in {option}`services.bbrf.secrets`: `hub`, `ingest` for the first
+                ingest node and `ingest-<suffix>` for the others.
+              '';
+            };
+
+            address = mkOption {
+              type = types.str;
+              example = "192.168.50.179";
+              description = "The address its distribution listens on.";
+            };
+          };
+        }
+      );
+      default = [ ];
+      example = [
+        {
+          name = "hub";
+          address = "192.168.50.121";
+        }
+        {
+          name = "ingest";
+          address = "192.168.50.178";
+        }
+        {
+          name = "ingest-2";
+          address = "192.168.50.179";
+        }
+      ];
+      description = ''
+        Every node of the deployment, the same on each machine. The hub syncs with every ingest
+        node listed, in this order.
+
+        `config.system.build.bbrf-secrets` runs `secrets` for these nodes, encrypting to their SSH
+        host keys: `init` creates every node's files, `add-ingest <name>` one added later, and the
+        other commands pass through. It writes to `SECRETS_DIR`, `secrets` by default.
+      '';
+    };
+
+    node = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "ingest-2";
+      description = "Which of {option}`services.bbrf.nodes` this machine is.";
+    };
+
+    secrets = mkOption {
+      type = types.path;
+      example = lib.literalExpression "./secrets/bbrf";
+      description = ''
+        Directory from `secrets` with the certificates and the `<name>.enc.yaml` files. With
+        sops-nix imported, this node's file is decrypted into
+        {option}`services.bbrf.distribution.keyFile` and
+        {option}`services.bbrf.distribution.cookieFile`.
       '';
     };
 
@@ -144,14 +243,6 @@ in
       description = "Group the server runs as; created when left at the default.";
     };
 
-    ## Deprecated
-    favoritesImportFile = mkOption {
-      type = types.nullOr types.str;
-      default = null;
-      example = "/var/lib/bbrf/storage.json";
-      description = "Favorites imported at boot while the favorites table is empty.";
-    };
-
     settings = mkOption {
       type = types.attrsOf (
         types.oneOf [
@@ -172,54 +263,16 @@ in
     };
 
     distribution = {
-      address = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        example = "192.168.50.121";
-        description = ''
-          This node's address, as given to `secrets init` (`HUB_ADDR` or `INGEST_ADDR`). It is in
-          the node name and the certificate.
-        '';
-      };
-
-      peerAddress = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        example = "192.168.50.178";
-        description = "The other node's address, as given to `secrets init`.";
-      };
-
-      certificates = mkOption {
-        type = types.nullOr types.path;
-        default = null;
-        example = lib.literalExpression "./secrets";
-        description = ''
-          Directory from `secrets init` with `caI.crt`, `caH.crt`, `dud.crt` and this node's
-          certificate. Only public files are read from it; it is copied to the store.
-        '';
-      };
-
       keyFile = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "Runtime path of this node's TLS private key; set from `sopsFile` when that is used.";
+        description = "Runtime path of this node's TLS private key; set by sops-nix when it is imported.";
       };
 
       cookieFile = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "Runtime path of the distribution cookie; set from `sopsFile` when that is used.";
-      };
-
-      sopsFile = mkOption {
-        type = types.nullOr types.path;
-        default = null;
-        example = lib.literalExpression "./secrets/hub.enc.yaml";
-        description = ''
-          This node's `<role>.enc.yaml` from `secrets init`, decrypted with sops-nix (which has to
-          be imported) into {option}`keyFile` and {option}`cookieFile`. sops-nix decrypts with
-          the host's SSH key by default, or `sops.age.keyFile`.
-        '';
+        description = "Runtime path of the distribution cookie; set by sops-nix when it is imported.";
       };
 
       portMin = mkOption {
@@ -238,18 +291,8 @@ in
         type = types.bool;
         default = false;
         description = ''
-          On a hub, open epmd (4369) and the distribution ports to every host, or only on
-          {option}`firewallInterface`. The ingest node needs nothing open.
-        '';
-      };
-
-      firewallInterface = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        example = "enp3s0";
-        description = ''
-          Interface {option}`openFirewall` opens the ports on, e.g. the LAN one when the hub is
-          also reachable from outside. All interfaces when unset.
+          On a hub, open epmd (4369) and the distribution ports to the ingest nodes' addresses.
+          The ingest nodes need nothing open.
         '';
       };
     };
@@ -273,23 +316,12 @@ in
             map
               (name: {
                 assertion = !distributed || dist.${name} != null;
-                message = "services.bbrf.distribution.${name} is required for role ${cfg.role}";
+                message = "services.bbrf.distribution.${name} is required for role ${cfg.role}; set it, or import sops-nix";
               })
               [
-                "address"
-                "peerAddress"
-                "certificates"
-              ]
-            ++
-              map
-                (name: {
-                  assertion = !distributed || dist.${name} != null;
-                  message = "services.bbrf.distribution.${name} is required for role ${cfg.role}; set it, or sopsFile with sops-nix imported";
-                })
-                [
-                  "keyFile"
-                  "cookieFile"
-                ];
+                "keyFile"
+                "cookieFile"
+              ];
 
           users.users = optionalAttrs (cfg.user == "bbrf") {
             bbrf = {
@@ -300,6 +332,8 @@ in
           users.groups = optionalAttrs (cfg.group == "bbrf") { bbrf = { }; };
 
           networking.firewall.allowedTCPPorts = optional cfg.openFirewall cfg.port;
+
+          system.build.bbrf-secrets = secretsScript;
 
           systemd.services.bbrf = {
             description = "bbrf radio server";
@@ -320,14 +354,15 @@ in
                 # the start script requires one; a distributed node replaces it from BBRF_COOKIE_FILE at boot
                 RELEASE_COOKIE = "bbrf-placeholder";
               }
-              // optionalAttrs (cfg.favoritesImportFile != null) {
-                FAVORITES_IMPORT_FILE = cfg.favoritesImportFile;
-              }
               // optionalAttrs distributed {
                 ELIXIR_ERL_OPTIONS = erlFlags;
                 BBRF_COOKIE_FILE = "${credentials}/cookie";
-                ${if cfg.role == "hub" then "SYNC_INGEST_NODE" else "SYNC_HUB_NODE"} =
-                  "bbrf_${peerRole}@${dist.peerAddress}";
+              }
+              // optionalAttrs (cfg.role == "hub") {
+                SYNC_INGEST_NODE = lib.concatMapStringsSep "," nodeName ingestNames;
+              }
+              // optionalAttrs (cfg.role == "ingest") {
+                SYNC_HUB_NODE = nodeName "hub";
               }
               // optionalAttrs (distributed && bind != null) {
                 # only takes effect when this node is the one starting epmd
@@ -363,28 +398,29 @@ in
 
         (mkIf (cfg.role == "hub" && dist.openFirewall) (
           let
-            ports = {
-              allowedTCPPorts = [ 4369 ];
-              allowedTCPPortRanges = [
-                {
-                  from = dist.portMin;
-                  to = dist.portMax;
-                }
-              ];
-            };
+            addresses = map (name: addressOf.${name}) ingestNames;
+            portMin = toString dist.portMin;
+            portMax = toString dist.portMax;
           in
           {
             networking.firewall = mkMerge [
-              (mkIf (dist.firewallInterface == null) ports)
-              (mkIf (dist.firewallInterface != null) { interfaces.${dist.firewallInterface} = ports; })
+              (mkIf config.networking.nftables.enable {
+                extraInputRules = "ip saddr { ${lib.concatStringsSep ", " addresses} } tcp dport { 4369, ${portMin}-${portMax} } accept";
+              })
+              (mkIf (!config.networking.nftables.enable) {
+                extraCommands = lib.concatMapStrings (address: ''
+                  iptables -A nixos-fw -p tcp -s ${address} --dport 4369 -j nixos-fw-accept
+                  iptables -A nixos-fw -p tcp -s ${address} --dport ${portMin}:${portMax} -j nixos-fw-accept
+                '') addresses;
+              })
             ];
           }
         ))
 
         (optionalAttrs (options ? sops) (
-          mkIf (distributed && dist.sopsFile != null) {
+          mkIf distributed {
             sops.secrets = lib.genAttrs [ "bbrf/key" "bbrf/cookie" ] (name: {
-              inherit (dist) sopsFile;
+              sopsFile = cfg.secrets + "/${cfg.node}.enc.yaml";
               key = lib.removePrefix "bbrf/" name;
               restartUnits = [ "bbrf.service" ];
             });
