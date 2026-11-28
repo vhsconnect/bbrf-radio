@@ -28,7 +28,8 @@ Environment:
 - sync, over Erlang distribution (the node runs with `--name`/`--sname`); see `BBRF.Sync`:
   - `SYNC_HUB_NODE` ingest only: the hub node to push to, e.g. `bbrf_hub@192.168.50.121`; unset, nothing is synced
   - `SYNC_INTERVAL_HOURS` (24) ingest only: time from one successful sync to the next, checked every 10 minutes
-  - `SYNC_INGEST_NODE` hub only: the one node allowed to push; unset, every push is refused
+  - `SYNC_INGEST_NODE` hub only: the nodes allowed to push, comma separated; unset, every push is refused
+  - `REMOVED_TTL_DAYS` (30) hub only: a station any ingest node sent as removed stays removed this long after the last time one did, whatever the others send
   - on a hub, `RETENTION_DAYS` is how much history the hub keeps (90 is about 5-10 GB), pruned every `PRUNE_HOURS`
 - `BBRF_API` (1), `BBRF_INGESTER` (1) each component on (`1`) or off (`0`), on top of the role. Any other value stops the boot
 - `BBRF_DB` (`data/bbrf.sqlite`) SQLite file

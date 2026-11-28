@@ -4,10 +4,12 @@
 #   secrets.fish age-key   on each node: create its age key if missing, print the public key
 #   secrets.fish init      on the admin machine: CAs, node certificates, cookie, encrypted node files
 #   secrets.fish renew     on the admin machine: new node keys and certificates, same CAs and cookie
+#   secrets.fish add-ingest  on the admin machine, after init: another ingest node, as INGEST_NAME
 #   secrets.fish check     verify the files in SECRETS_DIR
 #
-# Every prompt of init can be answered from the environment instead:
+# Every prompt of init and add-ingest can be answered from the environment instead:
 #   HUB_ADDR, INGEST_ADDR   the address (IP or hostname) each node's distribution listens on
+#   INGEST_NAME             add-ingest: the new node's file names in SECRETS_DIR, ingest-<suffix>
 #   HUB_AGE, INGEST_AGE     each node's age public key, from `secrets.fish age-key` on that node,
 #                           or `ssh` for one derived from its SSH host key in KNOWN_HOSTS (NixOS
 #                           nodes with sops-nix; ssh to the node once first)
@@ -137,6 +139,14 @@ function reseal -a name
     or die "cannot update the key in $name.enc.yaml"
 end
 
+# ingest-* are the ingest nodes add-ingest made after the first
+function node_pairs
+    printf '%s\n' hub:caH ingest:caI
+    for file in $secrets_dir/ingest-*.enc.yaml
+        echo (string replace -r '\.enc\.yaml$' '' -- (path basename $file)):caI
+    end
+end
+
 function make_work
     # plaintext keys only ever live here, in memory where the system allows
     set -l tmp (env_or TMPDIR /tmp)
@@ -170,7 +180,8 @@ function init
 
     mkdir -p $secrets_dir $ca_dir; and chmod 700 $ca_dir; or die "cannot create $secrets_dir and $ca_dir"
     set -l serials $ca_dir/*.srl
-    rm -f $serials
+    set -l added $secrets_dir/ingest-*.crt $secrets_dir/ingest-*.enc.yaml
+    rm -f $serials $added
     umask 077
 
     if not test -f $admin_age_key_file
@@ -235,7 +246,7 @@ function renew
     make_work
 
     say "node certificates, $node_days days; the CAs, the cookie and the age keys stay"
-    for pair in hub:caH ingest:caI
+    for pair in (node_pairs)
         set -l name (string split -f1 : $pair)
         set -l node (SOPS_AGE_KEY_FILE=$admin_age_key_file sops --decrypt --extract '["node"]' $secrets_dir/$name.enc.yaml)
         or die "cannot decrypt $name.enc.yaml with $admin_age_key_file"
@@ -250,6 +261,57 @@ function renew
         '' \
         "Done. Copy $secrets_dir/ to the other node and restart each node when convenient:" \
         'both CAs are unchanged, so renewed and not yet renewed nodes still trust each other.'
+end
+
+function add_ingest
+    need openssl sops age-keygen
+
+    ask INGEST_NAME "name of the new ingest node's files (ingest-2, ingest-attic, ...)" '^ingest-[a-z0-9]+$'
+    ask INGEST_ADDR "its address" '^[A-Za-z0-9.:-]+$'
+    ask INGEST_AGE "its age public key (run 'make age-key' on it, or 'ssh' for its host key)" '^(age1[a-z0-9]+|ssh)$'
+    test $INGEST_AGE = ssh; and set INGEST_AGE (ssh_age $INGEST_ADDR)
+
+    for file in $secrets_dir/{hub,ingest}.enc.yaml
+        test -f $file; or die "$file not found; run 'make secrets' first"
+    end
+    test -f $ca_dir/caI.key; or die "no $ca_dir/caI.key; bring the CA keys back"
+    test -f $admin_age_key_file; or die "no admin age key at $admin_age_key_file; it opens the node files"
+    for file in $secrets_dir/{hub,ingest}.enc.yaml
+        not grep -qF -- $INGEST_AGE $file
+        or die "$(path basename $file) is already encrypted to $INGEST_AGE; each ingest node needs its own age key"
+    end
+    if test -f $secrets_dir/$INGEST_NAME.enc.yaml
+        confirm "$INGEST_NAME.enc.yaml exists and will be replaced. go on?"
+        or exit 1
+    end
+
+    umask 077
+    set -g admin_age (age-keygen -y $admin_age_key_file); or die "cannot read $admin_age_key_file"
+    set -g cookie (SOPS_AGE_KEY_FILE=$admin_age_key_file sops --decrypt --extract '["cookie"]' $secrets_dir/hub.enc.yaml)
+    or die "cannot decrypt hub.enc.yaml with $admin_age_key_file"
+
+    set -l node bbrf_ingest@$INGEST_ADDR
+    set -l first (SOPS_AGE_KEY_FILE=$admin_age_key_file sops --decrypt --extract '["node"]' $secrets_dir/ingest.enc.yaml)
+    test "$node" != "$first"; or die "$node is the first ingest node's name already; set INGEST_ADDR to the new node's address"
+
+    make_work
+    say "$INGEST_NAME certificate, $node_days days, and $INGEST_NAME.enc.yaml ($INGEST_NAME + admin)"
+    new_node $INGEST_NAME caI $INGEST_ADDR
+    seal $INGEST_NAME $node $INGEST_AGE
+
+    set -l rule "  - path_regex: $INGEST_NAME\\.enc\\.yaml\$"
+    if not grep -qxF -- $rule $secrets_dir/.sops.yaml
+        printf '%s\n' $rule "    age: $INGEST_AGE,$admin_age" >>$secrets_dir/.sops.yaml
+    end
+    chmod 644 $secrets_dir/*.crt $secrets_dir/*.enc.yaml $secrets_dir/.sops.yaml
+
+    check
+
+    printf '%s\n' \
+        '' \
+        "Done. Node name: $node" \
+        "- add it to the hub's SYNC_INGEST_NODE and restart the hub" \
+        "- copy $secrets_dir/ to the new node and start it with BBRF_ROLE=ingest and SECRETS_NAME=$INGEST_NAME"
 end
 
 function ok
@@ -277,7 +339,7 @@ function check
             bad "$ca.crt expires within $node_days days, before a renewed certificate would; start over with 'make secrets'"
         end
     end
-    for pair in hub:caH ingest:caI
+    for pair in (node_pairs)
         set -l name (string split -f1 : $pair)
         set -l ca (string split -f2 : $pair)
         set -l other caH
@@ -324,9 +386,11 @@ switch "$argv[1]"
         init
     case renew
         renew
+    case add-ingest
+        add_ingest
     case check
         check
     case '*'
-        sed -n '2,15p' (status filename) | sed 's/^# \{0,1\}//'
+        sed -n '2,17p' (status filename) | sed 's/^# \{0,1\}//'
         exit 1
 end

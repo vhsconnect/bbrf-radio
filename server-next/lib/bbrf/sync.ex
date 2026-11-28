@@ -1,7 +1,9 @@
 defmodule BBRF.Sync do
   @moduledoc """
-  Copies the ingest node's stations, artist catalogue, station metrics
-  and track history into the hub's database over Erlang distribution.
+  Copies the ingest node's stations, artist catalogue and track history
+  into the hub's database over Erlang distribution. Station metrics are
+  not copied: they are computed on the hub, which has every ingest node's
+  history.
   Both databases have the same schema; the hub keeps its own window of
   history (its RETENTION_DAYS) and prunes it like the ingester does.
 
@@ -11,19 +13,17 @@ defmodule BBRF.Sync do
     1. connects to SYNC_HUB_NODE
     2. says hello with its schema version (the newest migration). The
        hub refuses unless it is at the same one; otherwise it replies
-       with its highest observation id and the oldest observation time
-       its retention keeps
+       with the highest of this node's observation ids it holds and the
+       oldest observation time its retention keeps
     3. upserts every station
     4. upserts the whole artist catalogue, parents before the rows
        referencing them
-    5. upserts every station metric, then names the runs they come from,
-       so the hub drops its rows from any other run
-    6. sends the observations newer than both, by id
-    7. disconnects
+    5. sends the observations newer than both, by id
+    6. disconnects
 
   Rows go in batches, one call each, so the hub sets the pace and writes
-  in short transactions. A sync that breaks off resumes from the hub's
-  highest id the next time. The last successful one is recorded in
+  in short transactions. A sync that breaks off resumes from the highest
+  of this node's ids the hub has the next time. The last successful one is recorded in
   ingest_stats under `sync`; the next is due SYNC_INTERVAL_HOURS
   (default 24) after it, checked every 10 minutes so a failed one is
   retried soon.
@@ -45,8 +45,14 @@ defmodule BBRF.Sync do
   @spec hub_node() :: node() | nil
   def hub_node, do: node_env("SYNC_HUB_NODE")
 
-  @spec ingest_node() :: node() | nil
-  def ingest_node, do: node_env("SYNC_INGEST_NODE")
+  @doc "The nodes SYNC_INGEST_NODE allows to push, comma separated."
+  @spec ingest_nodes() :: [node()]
+  def ingest_nodes do
+    "SYNC_INGEST_NODE"
+    |> Env.str("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.to_atom()))
+  end
 
   def interval_hours, do: Env.int("SYNC_INTERVAL_HOURS", 24)
 
@@ -69,9 +75,15 @@ defmodule BBRF.Sync do
 
   def children(:all), do: []
 
-  def describe(:hub),
-    do:
-      "sync: receiving from #{ingest_node() || "nobody (SYNC_INGEST_NODE unset)"}, keeping #{Track.retention_days()} days"
+  def describe(:hub) do
+    from =
+      case ingest_nodes() do
+        [] -> "nobody (SYNC_INGEST_NODE unset)"
+        nodes -> Enum.join(nodes, ", ")
+      end
+
+    "sync: receiving from #{from}, keeping #{Track.retention_days()} days, removals for #{Receiver.removed_ttl_days()} days"
+  end
 
   def describe(:ingest) do
     case hub_node() do
@@ -121,10 +133,8 @@ defmodule BBRF.Sync do
            {:ok, %{cursor: cursor, since: since}} <- call(hub, {:hello, schema_version()}),
            {:ok, stations} <- push_table(hub, "stations", 0),
            {:ok, artists} <- push_catalogue(hub),
-           {:ok, metrics} <- push_metrics(hub),
            {:ok, observations} <- push_table(hub, "track_observations", first_id(cursor, since)) do
-        {:ok,
-         %{stations: stations, artists: artists, metrics: metrics, observations: observations}}
+        {:ok, %{stations: stations, artists: artists, observations: observations}}
       end
 
     disconnect(hub)
@@ -191,19 +201,6 @@ defmodule BBRF.Sync do
         error -> {:halt, error}
       end
     end)
-  end
-
-  # a run that failed part way leaves rows from two runs, hence every
-  # run and not only each metric's latest
-  defp push_metrics(hub) do
-    with {:ok, sent} <- push_table(hub, "station_metrics", 0) do
-      %{rows: runs} = Repo.query!("SELECT DISTINCT metric, computed_at FROM station_metrics")
-
-      case call(hub, {:metric_runs, Enum.map(runs, &List.to_tuple/1)}) do
-        :ok -> {:ok, sent}
-        error -> error
-      end
-    end
   end
 
   # rows after `after_rowid` in rowid order (an observation's rowid is its

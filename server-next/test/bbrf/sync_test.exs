@@ -10,7 +10,7 @@ defmodule BBRF.SyncTest do
   setup do
     ingest = start_repo!(:ingest)
     hub = start_repo!(:hub)
-    start_supervised!({Receiver, repo: hub, ingest_node: node()})
+    start_supervised!({Receiver, repo: hub, ingest_nodes: [node()]})
     Repo.put_dynamic_repo(ingest)
 
     on(ingest, fn ->
@@ -26,19 +26,23 @@ defmodule BBRF.SyncTest do
     end)
 
     on_exit(fn ->
-      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE), &System.delete_env/1)
+      Enum.each(~w(RETENTION_DAYS SYNC_HUB_NODE SYNC_INGEST_NODE BBRF_ROLE), &System.delete_env/1)
     end)
 
     %{ingest: ingest, hub: hub}
   end
 
-  defp start_repo!(id) do
+  defp start_repo!(id, migrate_opts \\ [all: true]) do
     repo = start_supervised!({Repo, name: nil, database: ":memory:", pool_size: 1}, id: id)
+    migrate!(repo, migrate_opts)
+    repo
+  end
+
+  defp migrate!(repo, opts \\ [all: true]) do
     # the boot already loaded the migration modules
     Code.put_compiler_option(:ignore_module_conflict, true)
-    Ecto.Migrator.run(Repo, :up, all: true, dynamic_repo: repo, log: false)
+    Ecto.Migrator.run(Repo, :up, opts ++ [dynamic_repo: repo, log: false])
     Code.put_compiler_option(:ignore_module_conflict, false)
-    repo
   end
 
   defp on(repo, fun) do
@@ -53,8 +57,25 @@ defmodule BBRF.SyncTest do
 
   defp tracks(repo), do: on(repo, fn -> History.tracks([], "played", "desc", 50, 0) end)
 
+  defp second_ingest!(hub, fill) do
+    second = start_repo!(:second)
+    on(second, fill)
+
+    stop_supervised!(Receiver)
+
+    start_supervised!(
+      {Receiver, repo: hub, ingest_nodes: [:second@ingest], caller_node: :second@ingest}
+    )
+
+    second
+  end
+
+  defp titles(repo) do
+    repo |> tracks() |> Enum.map(& &1["title"]) |> Enum.sort()
+  end
+
   test "copies the stations and the track history into the hub", ctx do
-    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, metrics: 0, observations: 2}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 2}}
 
     assert tracks(ctx.hub) == tracks(ctx.ingest)
     assert ctx.hub |> on(fn -> History.search("halo", 50, 0) end) |> length() == 2
@@ -71,11 +92,170 @@ defmodule BBRF.SyncTest do
       Repo.insert_all(TrackObservation, [Metatable.observation(%{title: "Encore"})])
     end)
 
-    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, metrics: 0, observations: 1}}
+    assert Sync.sync(node()) == {:ok, %{stations: 2, artists: 0, observations: 1}}
     assert tracks(ctx.hub) == tracks(ctx.ingest)
 
     assert ctx.hub |> tracks() |> Enum.map(& &1["station"]["name"]) |> Enum.uniq() |> Enum.sort() ==
              ["Another FM", "Renamed FM"]
+  end
+
+  test "keeps the observations of two ingest nodes that number them alike", ctx do
+    {:ok, _} = Sync.sync(node())
+
+    second =
+      second_ingest!(ctx.hub, fn ->
+        Repo.insert_all(TrackObservation, [
+          Metatable.observation(%{raw_title: "A - Elsewhere", title: "Elsewhere"}),
+          Metatable.observation(%{raw_title: "A - Elsewhere too", title: "Elsewhere too"})
+        ])
+      end)
+
+    assert {:ok, %{observations: 2}} = on(second, fn -> Sync.sync(node()) end)
+    assert titles(ctx.hub) == ["Elsewhere", "Elsewhere too", "Halo", "Shine"]
+
+    on(second, fn ->
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{raw_title: "A - New", title: "New"})
+      ])
+    end)
+
+    assert {:ok, %{observations: 1}} = on(second, fn -> Sync.sync(node()) end)
+  end
+
+  defp station_1_plays(repo) do
+    %{rows: [[count]]} =
+      on(repo, fn ->
+        Repo.query!("SELECT COUNT(*) FROM track_observations WHERE stationuuid = 'station-1'")
+      end)
+
+    count
+  end
+
+  defp second_play(ctx, observed_at, raw_title \\ "Artist - Song") do
+    second =
+      second_ingest!(ctx.hub, fn ->
+        Repo.insert_all(TrackObservation, [
+          Metatable.observation(%{observed_at: observed_at, raw_title: raw_title})
+        ])
+      end)
+
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+  end
+
+  test "drops a play another ingest node already sent", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:04:00.000000Z")
+
+    assert station_1_plays(ctx.hub) == 1
+  end
+
+  test "keeps a play of the same title from another node further apart", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:30:00.000000Z")
+
+    assert station_1_plays(ctx.hub) == 2
+  end
+
+  test "keeps a play of another title from another node at the same time", ctx do
+    {:ok, _} = Sync.sync(node())
+    second_play(ctx, "2026-10-19T12:00:00.000000Z", "Artist - Other Song")
+
+    assert station_1_plays(ctx.hub) == 2
+  end
+
+  test "keeps the same title twice close together from one node", ctx do
+    on(ctx.ingest, fn ->
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{observed_at: "2026-10-19T12:05:00.000000Z"})
+      ])
+    end)
+
+    {:ok, _} = Sync.sync(node())
+
+    assert station_1_plays(ctx.hub) == 2
+  end
+
+  test "a hub upgraded with its history keeps it as the ingest node's", ctx do
+    hub = start_repo!(:legacy_hub, to: 20_261_110_120_011)
+
+    on(hub, fn ->
+      Repo.insert_all(TrackObservation, [
+        Metatable.observation(%{title: "Halo"}),
+        Metatable.observation(%{title: "Shine"})
+      ])
+
+      credit("resolved", ["mbid-duo"])
+    end)
+
+    System.put_env("BBRF_ROLE", "hub")
+    System.put_env("SYNC_INGEST_NODE", to_string(node()))
+    migrate!(hub)
+
+    stop_supervised!(Receiver)
+    start_supervised!({Receiver, repo: hub, ingest_nodes: [node()]})
+
+    assert {:ok, %{observations: 0}} = Sync.sync(node())
+    assert titles(hub) == titles(ctx.ingest)
+
+    second = second_ingest!(hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(hub) == ["mbid-duo"]
+  end
+
+  defp station_state(repo, stationuuid) do
+    %{rows: [[state]]} =
+      on(repo, fn ->
+        Repo.query!("SELECT meta_state FROM stations WHERE stationuuid = ?", [stationuuid])
+      end)
+
+    state
+  end
+
+  defp ingest_state(ctx, state) do
+    on(ctx.ingest, fn ->
+      Repo.query!("UPDATE stations SET meta_state = ? WHERE stationuuid = 'station-1'", [state])
+    end)
+  end
+
+  test "keeps a station removed while an ingest node sent it as removed lately", ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "removed"
+  end
+
+  test "takes the state sent once no ingest node sent the station as removed for REMOVED_TTL_DAYS",
+       ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    on(ctx.hub, fn ->
+      Repo.query!("UPDATE stations SET removed_seen_at = '2026-01-01T00:00:00Z'")
+    end)
+
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "ok"
+  end
+
+  test "a removal resent by an ingest node keeps the station removed", ctx do
+    ingest_state(ctx, "removed")
+    {:ok, _} = Sync.sync(node())
+
+    on(ctx.hub, fn ->
+      Repo.query!("UPDATE stations SET removed_seen_at = '2026-01-01T00:00:00Z'")
+    end)
+
+    {:ok, _} = Sync.sync(node())
+    ingest_state(ctx, "ok")
+    {:ok, _} = Sync.sync(node())
+
+    assert station_state(ctx.hub, "station-1") == "removed"
   end
 
   test "copies the artist catalogue and updates it on the next sync", ctx do
@@ -114,46 +294,75 @@ defmodule BBRF.SyncTest do
              end)
   end
 
-  test "copies the station metrics and drops the hub's rows from other runs", ctx do
-    metric = fn stationuuid, computed_at ->
-      on(ctx.ingest, fn ->
-        Repo.query!(
-          "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES (?, 'balance', 0.5, 60, ?)",
-          [stationuuid, computed_at]
-        )
-      end)
-    end
+  defp credit(status, mbids) do
+    Enum.each(mbids, fn mbid ->
+      Repo.query!(
+        "INSERT INTO artists (mbid, name, fetched_at) VALUES (?, ?, '2026-10-29')",
+        [mbid, mbid]
+      )
+    end)
 
-    hub_metrics = fn ->
-      on(ctx.hub, fn ->
-        Repo.query!(
-          "SELECT stationuuid, metric, computed_at FROM station_metrics ORDER BY stationuuid"
-        ).rows
-      end)
-    end
+    Repo.query!(
+      "INSERT INTO artist_credits (id, name, status, attempts, checked_at) VALUES (7, 'Simon & Garfunkel', ?, 1, '2026-10-29')",
+      [status]
+    )
 
-    metric.("station-1", "run-1")
-    metric.("station-2", "run-1")
-    assert {:ok, %{metrics: 2}} = Sync.sync(node())
-
-    on(ctx.ingest, fn -> Repo.query!("DELETE FROM station_metrics") end)
-    metric.("station-1", "run-2")
-    assert {:ok, %{metrics: 1}} = Sync.sync(node())
-
-    assert hub_metrics.() == [["station-1", "balance", "run-2"]]
+    mbids
+    |> Enum.with_index()
+    |> Enum.each(fn {mbid, position} ->
+      Repo.query!(
+        "INSERT INTO artist_credit_artists (artist_credit_id, position, artist_mbid) VALUES (7, ?, ?)",
+        [position, mbid]
+      )
+    end)
   end
 
-  test "keeps the hub's rows from every run the ingest node still has", ctx do
+  defp credit_artists(repo) do
+    on(repo, fn ->
+      Repo.query!(
+        "SELECT artist_mbid FROM artist_credit_artists WHERE artist_credit_id = 7 ORDER BY position"
+      ).rows
+      |> List.flatten()
+    end)
+  end
+
+  test "keeps the first resolution of a credit it receives", ctx do
+    on(ctx.ingest, fn -> credit("resolved", ["mbid-duo"]) end)
+    {:ok, _} = Sync.sync(node())
+
+    second = second_ingest!(ctx.hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(ctx.hub) == ["mbid-duo"]
+  end
+
+  test "takes a resolution from another node over a credit no node resolved", ctx do
+    on(ctx.ingest, fn -> credit("unresolved", []) end)
+    {:ok, _} = Sync.sync(node())
+
+    second = second_ingest!(ctx.hub, fn -> credit("resolved", ["mbid-paul", "mbid-art"]) end)
+    {:ok, _} = on(second, fn -> Sync.sync(node()) end)
+
+    assert credit_artists(ctx.hub) == ["mbid-paul", "mbid-art"]
+
+    assert %{rows: [["resolved"]]} =
+             on(ctx.hub, fn -> Repo.query!("SELECT status FROM artist_credits WHERE id = 7") end)
+  end
+
+  test "leaves the station metrics out", ctx do
     on(ctx.ingest, fn ->
       Repo.query!(
-        "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES ('station-1', 'balance', 0.5, 60, 'run-1'), ('station-2', 'balance', 0.5, 60, 'run-2')"
+        "INSERT INTO station_metrics (stationuuid, metric, value, sample, computed_at) VALUES ('station-1', 'balance', 0.5, 60, 'run-1')"
       )
     end)
 
     {:ok, _} = Sync.sync(node())
 
-    assert %{rows: [[2]]} =
+    assert %{rows: [[0]]} =
              on(ctx.hub, fn -> Repo.query!("SELECT COUNT(*) FROM station_metrics") end)
+
+    assert {:error, {:unknown_message, _}} =
+             GenServer.call(Receiver, {:rows, "station_metrics", ["stationuuid"], [["x"]]})
   end
 
   test "leaves out observations older than the hub keeps", ctx do
@@ -185,9 +394,22 @@ defmodule BBRF.SyncTest do
 
   test "refuses callers from other nodes", ctx do
     stop_supervised!(Receiver)
-    start_supervised!({Receiver, repo: ctx.hub, ingest_node: :impostor@elsewhere})
+    start_supervised!({Receiver, repo: ctx.hub, ingest_nodes: [:impostor@elsewhere]})
 
     assert Sync.sync(node()) == {:error, :not_allowed}
+  end
+
+  test "accepts any of the ingest nodes it is given", ctx do
+    stop_supervised!(Receiver)
+    start_supervised!({Receiver, repo: ctx.hub, ingest_nodes: [:other@elsewhere, node()]})
+
+    assert {:ok, _} = Sync.sync(node())
+  end
+
+  test "reads several ingest nodes from SYNC_INGEST_NODE" do
+    System.put_env("SYNC_INGEST_NODE", "bbrf_ingest@10.0.0.1, bbrf_ingest@10.0.0.2")
+
+    assert Sync.ingest_nodes() == [:"bbrf_ingest@10.0.0.1", :"bbrf_ingest@10.0.0.2"]
   end
 
   test "refuses rows for other tables or with other columns" do

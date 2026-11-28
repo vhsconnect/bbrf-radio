@@ -19,7 +19,7 @@ RESET  := \033[0m
 # $(call prefix,<color>,<label>) tags each line of a piped stream with a colored label
 prefix = 2>&1 | while IFS= read -r line; do printf '$(1)[$(2)]$(RESET) %s\n' "$$line"; done
 
-.PHONY: dev dev-all dev-api dev-ingester deps build server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-check
+.PHONY: dev dev-all dev-api dev-ingester deps build server docker docker-stop attach frontend test metrics favorites-export status status-watch age-key secrets secrets-renew secrets-add-ingest secrets-check
 
 dev: dev-all
 
@@ -96,6 +96,9 @@ secrets:
 
 secrets-renew:
 	$(NIX) scripts/secrets.fish renew
+
+secrets-add-ingest:
+	$(NIX) scripts/secrets.fish add-ingest
 
 secrets-check:
 	$(NIX) scripts/secrets.fish check

@@ -5,7 +5,7 @@ bbrf can run on one machine (`BBRF_ROLE=all`, the default: nothing on this page 
 - **hub**: a small machine, reachable from outside. Serves the frontend, the API and the favorites, and keeps a window of track history (`RETENTION_DAYS`, e.g. 90 days, about 5-10 GB). Never ingests.
 - **ingest**: a bigger machine, internal, not necessarily always on. Runs the ingester and keeps the full history.
 
-Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station, the station metrics and the observations the hub does not have yet, and disconnects. The hub never connects anywhere.
+Both run the same code and the same command, `make server`, or `make docker` for a release in Docker; `.env` decides the role. Both databases have the same schema. Every 10 minutes the ingest node checks whether a sync is due (once a day by default) and, if so, connects to the hub over Erlang distribution, pushes every station, the artist catalogue and the observations the hub does not have yet, and disconnects. The hub never connects anywhere. Several ingest nodes can push to one hub (see [Another ingest node](#another-ingest-node)); each polls every station on its own, and the hub drops a play another node already sent within 10 minutes.
 
 The link is mutual TLS with one private CA per role: only the ingest node's certificate is accepted by the hub, and the hub's own client side trusts nothing, so it cannot connect out. A shared cookie is the second check. Each node's TLS key and the cookie are kept in a [sops](https://github.com/getsops/sops) file encrypted to that node's [age](https://age-encryption.org) key and an admin key. See `BBRF.Sync` and `scripts/launch.fish` for the details.
 
@@ -78,18 +78,20 @@ Start from the example, `cp .env.example .env`, then set the role.
 On the hub:
 
     BBRF_ROLE=hub
+    SECRETS_NAME=hub
     SYNC_INGEST_NODE=bbrf_ingest@INGEST
     RETENTION_DAYS=90
 
 On the ingest node:
 
     BBRF_ROLE=ingest
+    SECRETS_NAME=ingest
     SYNC_HUB_NODE=bbrf_hub@HUB
     RETENTION_DAYS=365
 
 The ingest node keeps the database it already has (`BBRF_DB`, or `$STATE_DIR/db.sqlite` with `make`). `SYNC_INTERVAL_HOURS` (24) sets how often it syncs. History grows by 55-110 MB a day, so 90 days on the hub is 5-10 GB.
 
-With `make docker`, the container reads the whole `.env`, as `make server` and `make metrics` do, except for the paths, which point inside it: `BBRF_DB`, `STATIC_DIR`, `FAVORITES_IMPORT_FILE`, `SECRETS_DIR`, `AGE_KEY_FILE` and `RUNTIME_DIR`. It mounts `secrets/` read-only and reads the node's age key as `age.key` in `AGE_KEY_DIR` (default `~/.config/bbrf`, where `make age-key` puts it). The decrypted TLS key and cookie live in a tmpfs inside the container. `HOST_UID` and `HOST_GID` (1000 and 100) set the user it runs as, which has to own the database and be able to read the age key.
+With `make docker`, the container reads the whole `.env`, as `make server` and `make metrics` do, except for the paths, which point inside it: `BBRF_DB`, `STATIC_DIR`, `SECRETS_DIR`, `AGE_KEY_FILE` and `RUNTIME_DIR`. It mounts `secrets/` read-only and reads the node's age key as `age.key` in `AGE_KEY_DIR` (default `~/.config/bbrf`, where `make age-key` puts it). The decrypted TLS key and cookie live in a tmpfs inside the container. `HOST_UID` and `HOST_GID` (1000 and 100) set the user it runs as, which has to own the database and be able to read the age key.
 
 ## 5. Hub firewall
 
@@ -107,21 +109,7 @@ networking.firewall.extraCommands = ''
 
 With `networking.nftables.enable = true`, use `networking.firewall.extraInputRules = "ip saddr 192.168.50.178 tcp dport { 4369, 9100-9105 } accept";` instead.
 
-## 6. Favorites, when coming from one machine
-
-Favorites live on the hub and are never synced. To bring over the ones from an existing single-machine setup, before the hub's first start:
-
-    curl http://OLD_SERVER:4882/favorites | jq '{favorites: .}' > storage.json
-
-and set `FAVORITES_IMPORT_FILE=/path/to/storage.json` in the hub's `.env`. They are imported at boot while the hub's favorites table is empty.
-
-With `make docker`, the import file is always `bbrf-radio/storage.json` in the old node server's `bbrf-data` volume. On a hub that never ran it, copy the file in and restart the hub:
-
-    docker run --rm -v bbrf-radio_bbrf-data:/d -v "$PWD":/s debian:bookworm-slim \
-      sh -c 'mkdir -p /d/bbrf-radio && cp /s/storage.json /d/bbrf-radio/'
-    docker restart bbrf
-
-## 7. Bring them up
+## 6. Bring them up
 
 On both machines, in either order:
 
@@ -137,11 +125,13 @@ Check that it worked:
 
 ## Station metrics
 
-Metrics are not computed on a schedule: run them by hand on the ingest node (or the `all` node) with `make metrics`, or through the container; see [docs/cli.md](../docs/cli.md).
+Metrics are not computed on a schedule: run them by hand on the hub (or the `all` node) with `make metrics`, or through the container; see [docs/cli.md](../docs/cli.md). They score the last `METRICS_WINDOW_DAYS` (60) of plays, so keep the hub's `RETENTION_DAYS` at least that long.
 
 ## Upgrades
 
 Deploy the same version to both machines. When a version brings a migration, the hub refuses syncs until both sides run it, logging `sync: refused, the hub is at migration X and the ingest node at Y`; nothing is lost, the next sync after both are upgraded catches up. The order does not matter.
+
+The upgrade that numbers observations per ingest node (migration `20261120120012`) hands the hub's existing history to the first node in its `SYNC_INGEST_NODE`, so start the hub with `BBRF_ROLE=hub` and `SYNC_INGEST_NODE` set for it. A hub that misses it is sent its whole retention window again, once, and keeps both copies.
 
 ## Certificates
 
@@ -155,44 +145,54 @@ It issues new node keys and certificates from the same CAs, and swaps the key in
 
 To rotate after a leak, or when the CAs are near their end, run `make secrets` again (with `FORCE=1` or confirming). That replaces the CAs, the certificates and the cookie, so copy `secrets/` over and restart both nodes. Give a node whose age key leaked a new one first (`rm` the key file, `make age-key`).
 
+## Another ingest node
+
+After `make secrets`, on the admin machine, give the new node an age key (`make age-key` on it) and run:
+
+    INGEST_NAME=ingest-2 INGEST_ADDR=192.168.50.179 INGEST_AGE=age1... make secrets-add-ingest
+
+It issues `ingest-2.crt` from the same CA as the first ingest node and writes `ingest-2.enc.yaml` with the same cookie, readable by the new node and the admin. `make secrets-renew` and `make secrets-check` cover it from then on. Then:
+
+- copy `secrets/` to the new node, and set `SECRETS_NAME=ingest-2` next to `BBRF_ROLE=ingest` in its `.env` (on NixOS, `distribution.name = "ingest-2"` and `sopsFile = ./secrets/ingest-2.enc.yaml`)
+- add `bbrf_ingest@192.168.50.179` to the hub's `SYNC_INGEST_NODE`, comma separated (on NixOS, `settings.SYNC_INGEST_NODE` with every ingest node), open the hub's firewall to its address, and restart the hub
+
+With a hub on 192.168.50.121 and ingest nodes on 192.168.50.178 and 192.168.50.179, the `.env` files read:
+
+    # hub
+    BBRF_ROLE=hub
+    SECRETS_NAME=hub
+    SYNC_INGEST_NODE=bbrf_ingest@192.168.50.178,bbrf_ingest@192.168.50.179
+
+    # first ingest node
+    BBRF_ROLE=ingest
+    SECRETS_NAME=ingest
+    SYNC_HUB_NODE=bbrf_hub@192.168.50.121
+
+    # ingest-2
+    BBRF_ROLE=ingest
+    SECRETS_NAME=ingest-2
+    SYNC_HUB_NODE=bbrf_hub@192.168.50.121
+
 ## NixOS
-
-The flake's module runs either role as `bbrf.service`. It does what `scripts/launch.fish` does for the other two ways: the TLS option file is generated from the certificates, and the node's key and cookie reach the service through systemd credentials, never the store or the environment. With sops-nix imported, `sopsFile` decrypts the node's `secrets/<role>.enc.yaml` as it is; without it, point `keyFile` and `cookieFile` at files put there some other way (agenix, by hand).
-
-Commit `secrets/` to the private repo of your NixOS configuration: it holds only certificates and encrypted files.
-
-The hub:
-
+Pre-req
+1. Every machine runs NixOS with sops-nix imported, and its SSH host key enabled; 
+2. Describe the deployment once, in a shared module
 ```nix
-{
-  imports = [ inputs.bbrf.nixosModules.default inputs.sops-nix.nixosModules.sops ];
-
   services.bbrf = {
     enable = true;
-    role = "hub";
-    openFirewall = true; # the API
-    settings.RETENTION_DAYS = 90;
-    distribution = {
-      address = "192.168.50.121"; # HUB_ADDR
-      peerAddress = "192.168.50.178"; # INGEST_ADDR
-      certificates = ./secrets;
-      sopsFile = ./secrets/hub.enc.yaml;
-      openFirewall = true; # epmd and 9100-9105
-      firewallInterface = "enp3s0"; # the LAN one, so they stay closed to the outside
-    };
+    nodes = [
+      { name = "hub";      address = "192.168.50.121"; }
+      { name = "ingest";   address = "192.168.50.178"; }
+      { name = "ingest-2"; address = "192.168.50.179"; }
+    ];
+    secrets = ./secrets/bbrf;
   };
-}
 ```
-
-`distribution.openFirewall` opens the ports to every host on that interface; TLS still accepts only the ingest node's certificate. To open them to the ingest node's address alone, leave it off and add the rules from step 5 to your configuration.
-
-The ingest node is the same with `role = "ingest"`, the two addresses swapped, `sopsFile = ./secrets/ingest.enc.yaml` and no `distribution.openFirewall`. It listens for distribution on loopback only.
-
-sops-nix decrypts with the host's SSH key by default (the `ssh` answer in step 2). For a dedicated age key instead, give the node one with `make age-key`, use its public key in step 2 and set `sops.age.keyFile`.
-
-The database is `/var/lib/bbrf/db.sqlite`, owned by the `bbrf` user. Any variable from `.env` goes in `settings`; booleans become `1` and `0`. For favorites, copy `storage.json` somewhere the `bbrf` user can read and set `favoritesImportFile`. The `all` role runs without distribution, so there is no remote shell into it.
-
-After `make secrets-renew`, copy the new `secrets/` into the configuration and rebuild; sops-nix restarts the service when the key changes.
+3. Names must be hub, ingest, ingest-<suffix>.
+4. The order of the ingest nodes is the order the hub syncs them in.
+5. Generate the secrets on the first machine
+`SECRETS_DIR=secrets/bbrf nix run .#nixosConfigurations.<host>.config.system.build.bbrf-secrets -- init`. It creates the CAs, one certificate per node, and one encrypted file per node, readable only by that host and the admin. The admin age key and the CA private keys stay on this machine, outside the repo. Back them up.
+6. Commit and roll out. Rebuild each machine, in any order. sops-nix decrypts that machine's own file, and the service starts with the right role, node name and sync targets.
 
 ## Troubleshooting
 
@@ -203,7 +203,7 @@ A failed sync is logged as a warning on the ingest node, ending in the reason, a
 | `{:unreachable, :"bbrf_hub@..."}` | No connection: the hub is down, the firewall blocks 4369 or 9100-9105, `SYNC_HUB_NODE` has the wrong address, or the TLS handshake or cookie was refused. For those, the hub logs `TLS :server: ... Unknown CA` for a certificate it does not trust, `Unexpected Message` for a node without TLS, or a rejected connection attempt for a wrong cookie |
 | `:not_distributed` | The ingest node was not started through `make server` / `scripts/launch.fish` with `BBRF_ROLE=ingest` |
 | `{:schema_mismatch, hub, ingest}` | The two run different versions; upgrade the older one |
-| `:not_allowed` | The hub's `SYNC_INGEST_NODE` does not match the ingest node's name |
+| `:not_allowed` | The ingest node's name is not in the hub's `SYNC_INGEST_NODE` |
 | `{:columns_mismatch, table}` | A table was changed by hand on one side |
 
 The launcher stops with a message when the node's age key or `secrets/<role>.enc.yaml` is missing, or when the file was encrypted to another key. On NixOS the same shows up as `sops-install-secrets` failing during `nixos-rebuild`, and `bbrf.service` not starting for lack of its credentials.
